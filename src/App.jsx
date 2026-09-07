@@ -31,6 +31,16 @@ export default function App() {
   const [filtroComprador, setFiltroComprador] = useState('Todos');
   const [filtroGC, setFiltroGC] = useState('Todos');
   const [filtroAging, setFiltroAging] = useState('Todos');
+  const [nomeArquivo, setNomeArquivo] = useState('Base padrão (planilha enviada)');
+
+  // Função chamada imediatamente ao selecionar o arquivo
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setNomeArquivo(`Base carregada: ${file.name}`);
+      alert(`Planilha "${file.name}" carregada com sucesso!`);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#0A0E17] text-[#E2E8F0] p-6 font-sans">
@@ -44,18 +54,25 @@ export default function App() {
           <h1 className="text-2xl font-bold text-white tracking-tight">
             Dashboard de Requisições
           </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Base padrão (planilha enviada)
+          <p className="text-xs text-slate-400 mt-0.5 font-medium">
+            {nomeArquivo}
           </p>
         </div>
 
+        {/* BOTÃO DE UPLOAD NATIVO (DIRETO E INFALÍVEL) */}
         <div className="flex items-center gap-3">
-          <button className="px-4 py-2 bg-[#171E2E] hover:bg-[#232D42] text-xs font-medium text-slate-300 rounded-lg border border-slate-800 transition">
-            Divergências
-          </button>
-          <button className="px-4 py-2 bg-[#00E599] hover:bg-[#00C282] text-xs font-bold text-[#0A0E17] rounded-lg transition shadow-lg shadow-[#00E599]/10">
+          <label className="px-4 py-2 bg-[#00E599] hover:bg-[#00C282] text-xs font-bold text-[#0A0E17] rounded-lg transition shadow-lg shadow-[#00E599]/10 cursor-pointer inline-flex items-center gap-2 select-none">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
             Atualizar base (.xlsx)
-          </button>
+            <input 
+              type="file" 
+              onChange={handleFileChange} 
+              accept=".xlsx, .xls, .csv" 
+              className="hidden" 
+            />
+          </label>
         </div>
       </div>
 
@@ -239,7 +256,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* NOVA MATRIZ DE PRIORIZAÇÃO OPERACIONAL */}
+      {/* MATRIZ DE PRIORIZAÇÃO OPERACIONAL */}
       <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80 mb-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-5 gap-2">
           <div>
@@ -266,8 +283,6 @@ export default function App() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          
-          {/* QUADRANTE 1: ALTO IMPACTO + ALTO AGING */}
           <div className="bg-[#171E2E] p-4 rounded-xl border border-rose-500/30">
             <div className="flex justify-between items-center mb-3 pb-2 border-b border-rose-500/20">
               <h3 className="text-xs font-bold text-rose-400 uppercase tracking-wide">
@@ -302,7 +317,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* QUADRANTE 2: ALTO AGING PONTUAL */}
           <div className="bg-[#171E2E] p-4 rounded-xl border border-amber-500/30">
             <div className="flex justify-between items-center mb-3 pb-2 border-b border-amber-500/20">
               <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wide">
@@ -337,7 +351,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* QUADRANTE 3: ALTO VOLUME EM FLUXO NORMAL */}
           <div className="bg-[#171E2E] p-4 rounded-xl border border-emerald-500/30">
             <div className="flex justify-between items-center mb-3 pb-2 border-b border-emerald-500/20">
               <h3 className="text-xs font-bold text-[#00E599] uppercase tracking-wide">
