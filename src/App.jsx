@@ -5,7 +5,7 @@ import {
   BarChart, Bar, PieChart, Pie, Cell 
 } from 'recharts';
 
-// --- DADOS DO DASHBOARD ---
+// --- DADOS MOCKADOS DO DASHBOARD DE REQUIÇÕES ---
 const evolucaoData = [
   { mes: '2020-05', solicitacoes: 18, modificacoes: 5 },
   { mes: '2020-06', solicitacoes: 65, modificacoes: 12 },
@@ -57,11 +57,11 @@ export default function App() {
     }
   };
 
-  // --- FUNÇÃO EXCLUSIVA DE EXPORTAÇÃO DO DASHBOARD DE REQUIOSIÇÕES ---
+  // --- FUNÇÃO PARA GERAR O ARQUIVO EXCEL DA BASE ---
   const exportarParaExcel = () => {
     const wb = XLSX.utils.book_new();
 
-    // 1. Aba: KPIs Executivos
+    // Aba 1: KPIs Executivos
     const kpisData = [
       { Indicador: 'Volume de Requisições', Valor: '232 RCs', Detalhamento: '390 itens solicitados' },
       { Indicador: 'Lead Time Médio', Valor: '24,3 dias', Detalhamento: 'Pico de 85 dias registrados' },
@@ -71,19 +71,19 @@ export default function App() {
     const wsKPIs = XLSX.utils.json_to_sheet(kpisData);
     XLSX.utils.book_append_sheet(wb, wsKPIs, 'KPIs Executivos');
 
-    // 2. Aba: Evolução Temporal
+    // Aba 2: Evolução Temporal
     const wsEvolucao = XLSX.utils.json_to_sheet(evolucaoData);
     XLSX.utils.book_append_sheet(wb, wsEvolucao, 'Evolução Temporal');
 
-    // 3. Aba: Faixas de Aging
+    // Aba 3: Faixas de Aging
     const wsAging = XLSX.utils.json_to_sheet(agingBarData);
     XLSX.utils.book_append_sheet(wb, wsAging, 'Faixas de Aging');
 
-    // 4. Aba: Matriz de Priorização por Planta
+    // Aba 4: Matriz por Planta
     const wsMatriz = XLSX.utils.json_to_sheet(matrizPlantas);
     XLSX.utils.book_append_sheet(wb, wsMatriz, 'Matriz por Planta');
 
-    // Gera o download do arquivo .xlsx
+    // Baixa o arquivo .xlsx
     XLSX.writeFile(wb, 'Dashboard_Requisicoes_Procurement.xlsx');
   };
 
@@ -104,10 +104,11 @@ export default function App() {
           </p>
         </div>
 
-        {/* BOTÕES DE AÇÃO */}
+        {/* BOTÕES DE AÇÃO: EXPORTAR E UPLOAD */}
         <div className="flex items-center gap-3">
           <button 
             onClick={exportarParaExcel}
+            type="button"
             className="px-4 py-2 bg-[#1E293B] hover:bg-[#334155] border border-slate-700 text-xs font-bold text-white rounded-lg transition inline-flex items-center gap-2 select-none shadow-sm cursor-pointer"
           >
             <svg className="w-4 h-4 text-[#00E599]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
