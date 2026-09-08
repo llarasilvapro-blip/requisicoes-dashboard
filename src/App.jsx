@@ -5,7 +5,35 @@ import {
   BarChart, Bar, PieChart, Pie, Cell 
 } from 'recharts';
 
-// --- ESTRUTURA INICIAL BASEADA NA SUA PLANILHA ---
+// HELPER PARA EXTRAIR O NOME DO COMPRADOR DA COLUNA 'Ação RC'
+const extrairComprador = (acao) => {
+  if (!acao) return 'Não atribuído';
+  const acaoStr = String(acao);
+  if (acaoStr.includes(':')) {
+    return acaoStr.split(':')[1].trim();
+  }
+  return acaoStr;
+};
+
+// HELPER PARA CLASSIFICAR FAIXA DE AGING BASEADO EM 'Dias RC'
+const calcularFaixaAging = (dias) => {
+  const d = Number(dias) || 0;
+  if (d <= 15) return '0 - 15 dias';
+  if (d <= 30) return '16 - 30 dias';
+  if (d <= 60) return '31 - 60 dias';
+  return 'Acima de 60 dias';
+};
+
+// BASE INICIAL PRÉ-CARREGADA (GARANTE QUE A TELA NÃO FIQUE VAZIA)
+const dadosIniciais = [
+  { id: 1, rc: '10424994', diasRC: 85, centro: 'Industria - Garanhuns', comprador: 'Rubens Almeida', grupoCompras: 'I07', faixaAging: 'Acima de 60 dias', qtdSolicitada: 1 },
+  { id: 2, rc: '10424994', diasRC: 85, centro: 'Industria - Garanhuns', comprador: 'Rubens Almeida', grupoCompras: 'I07', faixaAging: 'Acima de 60 dias', qtdSolicitada: 2 },
+  { id: 3, rc: '10424995', diasRC: 12, centro: 'Fabrica - Uberlândia', comprador: 'Lucas Suzuki', grupoCompras: 'ENE', faixaAging: '0 - 15 dias', qtdSolicitada: 5 },
+  { id: 4, rc: '10424996', diasRC: 25, centro: 'Industria - Araras', comprador: 'Jaqueline Dente', grupoCompras: 'C07', faixaAging: '16 - 30 dias', qtdSolicitada: 10 },
+  { id: 5, rc: '10424997', diasRC: 45, centro: 'Indústria - Pará de Minas', comprador: 'Rubens Almeida', grupoCompras: 'I08', faixaAging: '31 - 60 dias', qtdSolicitada: 8 },
+  { id: 6, rc: '10424998', diasRC: 5, centro: 'Industria - Curral Novo', comprador: 'Lucas Suzuki', grupoCompras: 'I16', faixaAging: '0 - 15 dias', qtdSolicitada: 3 }
+];
+
 const evolucaoDataMock = [
   { mes: '2020-05', solicitacoes: 18, modificacoes: 5 },
   { mes: '2020-06', solicitacoes: 65, modificacoes: 12 },
@@ -21,33 +49,15 @@ const remessaData = [
 ];
 
 export default function App() {
-  const [baseDados, setBaseDados] = useState([]);
+  // Inicializa o estado com a base padrão para que os seletores funcionem de imediato
+  const [baseDados, setBaseDados] = useState(dadosIniciais);
   const [filtroCentro, setFiltroCentro] = useState('Todos');
   const [filtroComprador, setFiltroComprador] = useState('Todos');
   const [filtroGC, setFiltroGC] = useState('Todos');
   const [filtroAging, setFiltroAging] = useState('Todos');
   const [nomeArquivo, setNomeArquivo] = useState('Base padrão (Requisições procurement.xlsx)');
 
-  // HELPER PARA CLASSIFICAR FAIXA DE AGING BASEADO EM 'Dias RC'
-  const calcularFaixaAging = (dias) => {
-    const d = Number(dias) || 0;
-    if (d <= 15) return '0 - 15 dias';
-    if (d <= 30) return '16 - 30 dias';
-    if (d <= 60) return '31 - 60 dias';
-    return 'Acima de 60 dias';
-  };
-
-  // HELPER PARA EXTRAIR O NOME DO COMPRADOR DA COLUNA 'Ação RC'
-  const extrairComprador = (acao) => {
-    if (!acao) return 'Não atribuído';
-    const acaoStr = String(acao);
-    if (acaoStr.includes(':')) {
-      return acaoStr.split(':')[1].trim();
-    }
-    return acaoStr;
-  };
-
-  // LEITURA E MAPEAMENTO EXATO DA SUA PLANILHA EXCEL
+  // LEITURA E MAPEAMENTO EXATO DA PLANILHA ENVIADA NO UPLOAD
   const handleFileChange = (event) => {
     const file = event.target.files && event.target.files[0];
     if (file) {
@@ -79,7 +89,7 @@ export default function App() {
 
             setBaseDados(dadosFormatados);
             
-            // Reseta filtros ao carregar nova base
+            // Reseta filtros ao carregar a nova base
             setFiltroCentro('Todos');
             setFiltroComprador('Todos');
             setFiltroGC('Todos');
@@ -99,7 +109,7 @@ export default function App() {
     }
   };
 
-  // DROPDOWNS GERADOS DINAMICAMENTE
+  // GERACÃO DINÂMICA DAS OPÇÕES DOS DROPDOWNS
   const opcoesFiltros = useMemo(() => {
     const getUnicos = (key) => {
       const vals = baseDados.map(item => item[key]).filter(Boolean);
@@ -114,7 +124,7 @@ export default function App() {
     };
   }, [baseDados]);
 
-  // FILTRAGEM DOS DADOS
+  // FILTRAGEM DINÂMICA DOS DADOS
   const dadosFiltrados = useMemo(() => {
     return baseDados.filter(item => {
       const matchCentro = filtroCentro === 'Todos' || item.centro === filtroCentro;
@@ -183,7 +193,7 @@ export default function App() {
           </p>
         </div>
 
-        {/* BOTÃO DE UPLOAD (BOTÃO DE EXPORTAR REMOVIDO) */}
+        {/* BOTÃO DE UPLOAD (SEM BOTÃO DE EXPORTAR) */}
         <div className="flex items-center gap-3">
           <label className="px-4 py-2 bg-[#00E599] hover:bg-[#00C282] text-xs font-bold text-[#0A0E17] rounded-lg transition shadow-lg shadow-[#00E599]/10 cursor-pointer inline-flex items-center gap-2 select-none">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
