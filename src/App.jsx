@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   BarChart, Bar, PieChart, Pie, Cell 
@@ -14,16 +15,31 @@ const evolucaoData = [
 ];
 
 const agingBarData = [
-  { faixa: '0 - 15 dias', itens: 183, rcs: 104 },
-  { faixa: '16 - 30 dias', itens: 84, rcs: 54 },
-  { faixa: '31 - 60 dias', itens: 79, rcs: 58 },
-  { faixa: 'Acima de 60 dias', itens: 44, rcs: 18 },
+  { faixa: '0 - 15 dias', itens: 183, rcs: 104, status: 'Saudável' },
+  { faixa: '16 - 30 dias', itens: 84, rcs: 54, status: 'Atenção' },
+  { faixa: '31 - 60 dias', itens: 79, rcs: 58, status: 'Atrasado' },
+  { faixa: 'Acima de 60 dias', itens: 44, rcs: 18, status: 'Crítico' },
 ];
 
 const remessaData = [
   { name: 'Remessa no prazo', value: 82, color: '#00E599' },
   { name: 'Remessa atrasada', value: 12, color: '#F59E0B' },
   { name: 'Sem data', value: 6, color: '#A855F7' },
+];
+
+const matrizPlantas = [
+  { Planta: 'Indústria - Pará de Minas', Itens: 46, AgingMedioDias: 27.7, Classificacao: '🔴 1. Alto Impacto & Atraso Crítico' },
+  { Planta: 'Fábrica - Uberlândia', Itens: 43, AgingMedioDias: 35.3, Classificacao: '🔴 1. Alto Impacto & Atraso Crítico' },
+  { Planta: 'Indústria - Araras', Itens: 41, AgingMedioDias: 16.8, Classificacao: '🔴 1. Alto Impacto & Atraso Crítico' },
+  { Planta: 'Indústria - Sete Lagoas', Itens: 29, AgingMedioDias: 37.0, Classificacao: '🔴 1. Alto Impacto & Atraso Crítico' },
+  { Planta: 'Indústria - Londrina', Itens: 19, AgingMedioDias: 46.4, Classificacao: '🟠 2. Risco de Trava / Gargalo' },
+  { Planta: 'Indústria - Garanhuns', Itens: 8, AgingMedioDias: 49.3, Classificacao: '🟠 2. Risco de Trava / Gargalo' },
+  { Planta: 'Indústria - Ijuí', Itens: 10, AgingMedioDias: 28.6, Classificacao: '🟠 2. Risco de Trava / Gargalo' },
+  { Planta: 'Posto de Coleta - Marau', Itens: 2, AgingMedioDias: 31.5, Classificacao: '🟠 2. Risco de Trava / Gargalo' },
+  { Planta: 'Indústria - Carambeí', Itens: 30, AgingMedioDias: 17.7, Classificacao: '🟢 3. Alto Volume em Giro Rápido' },
+  { Planta: 'Indústria - Três de Maio', Itens: 20, AgingMedioDias: 18.6, Classificacao: '🟢 3. Alto Volume em Giro Rápido' },
+  { Planta: 'Indústria - Barra Mansa', Itens: 19, AgingMedioDias: 16.3, Classificacao: '🟢 3. Alto Volume em Giro Rápido' },
+  { Planta: 'Indústria - Pouso Alto', Itens: 19, AgingMedioDias: 13.7, Classificacao: '🟢 3. Alto Volume em Giro Rápido' },
 ];
 
 export default function App() {
@@ -33,13 +49,42 @@ export default function App() {
   const [filtroAging, setFiltroAging] = useState('Todos');
   const [nomeArquivo, setNomeArquivo] = useState('Base padrão (planilha enviada)');
 
-  // Função chamada imediatamente ao selecionar o arquivo
   const handleFileChange = (event) => {
-    const file = event.target.files[0];
+    const file = event.target.files && event.target.files[0];
     if (file) {
       setNomeArquivo(`Base carregada: ${file.name}`);
-      alert(`Planilha "${file.name}" carregada com sucesso!`);
+      alert(`Planilha "${file.name}" selecionada com sucesso!`);
     }
+  };
+
+  // --- FUNÇÃO EXCLUSIVA DE EXPORTAÇÃO DO DASHBOARD DE REQUIOSIÇÕES ---
+  const exportarParaExcel = () => {
+    const wb = XLSX.utils.book_new();
+
+    // 1. Aba: KPIs Executivos
+    const kpisData = [
+      { Indicador: 'Volume de Requisições', Valor: '232 RCs', Detalhamento: '390 itens solicitados' },
+      { Indicador: 'Lead Time Médio', Valor: '24,3 dias', Detalhamento: 'Pico de 85 dias registrados' },
+      { Indicador: 'Pendências Críticas', Valor: '32,8%', Detalhamento: '76 RCs > 30 dias (18 > 60 dias)' },
+      { Indicador: 'Cobertura Operacional', Valor: '40 centros', Detalhamento: '67.719 unidades solicitadas' }
+    ];
+    const wsKPIs = XLSX.utils.json_to_sheet(kpisData);
+    XLSX.utils.book_append_sheet(wb, wsKPIs, 'KPIs Executivos');
+
+    // 2. Aba: Evolução Temporal
+    const wsEvolucao = XLSX.utils.json_to_sheet(evolucaoData);
+    XLSX.utils.book_append_sheet(wb, wsEvolucao, 'Evolução Temporal');
+
+    // 3. Aba: Faixas de Aging
+    const wsAging = XLSX.utils.json_to_sheet(agingBarData);
+    XLSX.utils.book_append_sheet(wb, wsAging, 'Faixas de Aging');
+
+    // 4. Aba: Matriz de Priorização por Planta
+    const wsMatriz = XLSX.utils.json_to_sheet(matrizPlantas);
+    XLSX.utils.book_append_sheet(wb, wsMatriz, 'Matriz por Planta');
+
+    // Gera o download do arquivo .xlsx
+    XLSX.writeFile(wb, 'Dashboard_Requisicoes_Procurement.xlsx');
   };
 
   return (
@@ -59,8 +104,18 @@ export default function App() {
           </p>
         </div>
 
-        {/* BOTÃO DE UPLOAD NATIVO (DIRETO E INFALÍVEL) */}
+        {/* BOTÕES DE AÇÃO */}
         <div className="flex items-center gap-3">
+          <button 
+            onClick={exportarParaExcel}
+            className="px-4 py-2 bg-[#1E293B] hover:bg-[#334155] border border-slate-700 text-xs font-bold text-white rounded-lg transition inline-flex items-center gap-2 select-none shadow-sm cursor-pointer"
+          >
+            <svg className="w-4 h-4 text-[#00E599]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Exportar dados (.xlsx)
+          </button>
+
           <label className="px-4 py-2 bg-[#00E599] hover:bg-[#00C282] text-xs font-bold text-[#0A0E17] rounded-lg transition shadow-lg shadow-[#00E599]/10 cursor-pointer inline-flex items-center gap-2 select-none">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -179,21 +234,10 @@ export default function App() {
             </AreaChart>
           </ResponsiveContainer>
         </div>
-        <div className="flex justify-center gap-6 mt-2 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#00E599]"></span>
-            <span className="text-slate-400">Solicitações</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]"></span>
-            <span className="text-slate-400">Modificações</span>
-          </div>
-        </div>
       </div>
 
       {/* AGING E CUMPRIMENTO DE DATA */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* DISTRIBUIÇÃO POR FAIXA DE AGING */}
         <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
           <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">DISTRIBUIÇÃO POR FAIXA DE AGING</h2>
           <p className="text-[11px] text-slate-400 mb-4">Itens e RCs por tempo em aberto</p>
@@ -210,19 +254,8 @@ export default function App() {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex justify-center gap-6 mt-2 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded bg-[#00E599]"></span>
-              <span className="text-slate-400">Itens</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded bg-[#F59E0B]"></span>
-              <span className="text-slate-400">RCs</span>
-            </div>
-          </div>
         </div>
 
-        {/* CUMPRIMENTO DE DATA DE REMESSA */}
         <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
           <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">CUMPRIMENTO DE DATA DE REMESSA</h2>
           <p className="text-[11px] text-slate-400 mb-2">Comparação entre Modificado em e Remessas (dia útil)</p>
@@ -230,13 +263,7 @@ export default function App() {
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie 
-                  data={remessaData} 
-                  innerRadius={65} 
-                  outerRadius={85} 
-                  paddingAngle={4} 
-                  dataKey="value"
-                >
+                <Pie data={remessaData} innerRadius={65} outerRadius={85} paddingAngle={4} dataKey="value">
                   {remessaData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
@@ -245,146 +272,6 @@ export default function App() {
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex flex-wrap justify-center gap-4 mt-1 text-xs">
-            {remessaData.map((item, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }}></span>
-                <span className="text-slate-400">{item.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* MATRIZ DE PRIORIZAÇÃO OPERACIONAL */}
-      <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80 mb-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-5 gap-2">
-          <div>
-            <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#00E599]"></span>
-              MATRIZ DE PRIORIZAÇÃO OPERACIONAL POR PLANTA
-            </h2>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Cruzamento de Impacto (Volume de Itens) x Severidade de Atraso (Aging em Dias)
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-[11px]">
-            <span className="px-2.5 py-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 font-semibold">
-              🔴 4 Críticas
-            </span>
-            <span className="px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold">
-              🟠 4 Gargalos
-            </span>
-            <span className="px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
-              🟢 4 Saudáveis
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="bg-[#171E2E] p-4 rounded-xl border border-rose-500/30">
-            <div className="flex justify-between items-center mb-3 pb-2 border-b border-rose-500/20">
-              <h3 className="text-xs font-bold text-rose-400 uppercase tracking-wide">
-                1. Alto Impacto & Atraso Crítico
-              </h3>
-              <span className="text-[10px] bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded font-mono">
-                Foco Imediato
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-400 mb-3">Plantas com grande volume represado E tempo médio alto.</p>
-            
-            <div className="space-y-2.5">
-              {[
-                { nome: 'Indústria - Pará de Minas', itens: 46, dias: 27.7 },
-                { nome: 'Fábrica - Uberlândia', itens: 43, dias: 35.3 },
-                { nome: 'Indústria - Araras', itens: 41, dias: 16.8 },
-                { nome: 'Indústria - Sete Lagoas', itens: 29, dias: 37.0 },
-              ].map((item, idx) => (
-                <div key={idx} className="bg-[#101522] p-2.5 rounded-lg border border-slate-800 flex justify-between items-center">
-                  <div>
-                    <p className="text-xs font-semibold text-white">{item.nome}</p>
-                    <p className="text-[10px] text-slate-400">{item.itens} itens aguardando</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-bold text-rose-400 font-mono">{item.dias} dias</span>
-                    <div className="w-16 bg-slate-800 h-1 rounded-full mt-1 overflow-hidden">
-                      <div className="bg-rose-500 h-full" style={{ width: `${Math.min((item.dias/40)*100, 100)}%` }}></div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-[#171E2E] p-4 rounded-xl border border-amber-500/30">
-            <div className="flex justify-between items-center mb-3 pb-2 border-b border-amber-500/20">
-              <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wide">
-                2. Risco de Trava / Aging Elevado
-              </h3>
-              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-mono">
-                Gargalos
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-400 mb-3">Médio/baixo volume, mas com dias extremamente elevados.</p>
-
-            <div className="space-y-2.5">
-              {[
-                { nome: 'Indústria - Londrina', itens: 19, dias: 46.4 },
-                { nome: 'Indústria - Garanhuns', itens: 8, dias: 49.3 },
-                { nome: 'Indústria - Ijuí', itens: 10, dias: 28.6 },
-                { nome: 'Posto de Coleta - Marau', itens: 2, dias: 31.5 },
-              ].map((item, idx) => (
-                <div key={idx} className="bg-[#101522] p-2.5 rounded-lg border border-slate-800 flex justify-between items-center">
-                  <div>
-                    <p className="text-xs font-semibold text-white">{item.nome}</p>
-                    <p className="text-[10px] text-slate-400">{item.itens} itens aguardando</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-bold text-amber-400 font-mono">{item.dias} dias</span>
-                    <div className="w-16 bg-slate-800 h-1 rounded-full mt-1 overflow-hidden">
-                      <div className="bg-amber-500 h-full" style={{ width: `${Math.min((item.dias/50)*100, 100)}%` }}></div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-[#171E2E] p-4 rounded-xl border border-emerald-500/30">
-            <div className="flex justify-between items-center mb-3 pb-2 border-b border-emerald-500/20">
-              <h3 className="text-xs font-bold text-[#00E599] uppercase tracking-wide">
-                3. Alto Volume em Giro Rápido
-              </h3>
-              <span className="text-[10px] bg-[#00E599]/20 text-[#00E599] px-1.5 py-0.5 rounded font-mono">
-                Saudável
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-400 mb-3">Grande giro de itens, mas dentro da janela aceitável de SLA.</p>
-
-            <div className="space-y-2.5">
-              {[
-                { nome: 'Indústria - Carambeí', itens: 30, dias: 17.7 },
-                { nome: 'Indústria - Três de Maio', itens: 20, dias: 18.6 },
-                { nome: 'Indústria - Barra Mansa', itens: 19, dias: 16.3 },
-                { nome: 'Indústria - Pouso Alto', itens: 19, dias: 13.7 },
-              ].map((item, idx) => (
-                <div key={idx} className="bg-[#101522] p-2.5 rounded-lg border border-slate-800 flex justify-between items-center">
-                  <div>
-                    <p className="text-xs font-semibold text-white">{item.nome}</p>
-                    <p className="text-[10px] text-slate-400">{item.itens} itens aguardando</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-bold text-[#00E599] font-mono">{item.dias} dias</span>
-                    <div className="w-16 bg-slate-800 h-1 rounded-full mt-1 overflow-hidden">
-                      <div className="bg-[#00E599] h-full" style={{ width: `${Math.min((item.dias/20)*100, 100)}%` }}></div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
         </div>
       </div>
 
