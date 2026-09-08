@@ -5,17 +5,7 @@ import {
   BarChart, Bar, PieChart, Pie, Cell 
 } from 'recharts';
 
-// --- BASE DE DADOS PADRÃO (MOCK) ---
-const basePadrao = Array.from({ length: 390 }, (_, index) => ({
-  id: index + 1,
-  centro: ['Pará de Minas', 'Uberlândia', 'Araras', 'Sete Lagoas', 'Londrina'][index % 5],
-  comprador: ['João Silva', 'Maria Santos', 'Carlos Oliveira', 'Ana Souza'][index % 4],
-  grupoCompras: ['GC - Mecânica', 'GC - Elétrica', 'GC - Serviços', 'GC - Químicos'][index % 4],
-  faixaAging: ['0 - 15 dias', '16 - 30 dias', '31 - 60 dias', 'Acima de 60 dias'][index % 4],
-  solicitacoes: (index % 10) + 1,
-  modificacoes: (index % 5)
-}));
-
+// --- ESTRUTURA INICIAL BASEADA NA SUA PLANILHA ---
 const evolucaoDataMock = [
   { mes: '2020-05', solicitacoes: 18, modificacoes: 5 },
   { mes: '2020-06', solicitacoes: 65, modificacoes: 12 },
@@ -30,25 +20,34 @@ const remessaData = [
   { name: 'Sem data', value: 6, color: '#A855F7' },
 ];
 
-const matrizPlantas = [
-  { Planta: 'Indústria - Pará de Minas', Itens: 46, AgingMedioDias: 27.7, Classificacao: '🔴 1. Alto Impacto & Atraso Crítico' },
-  { Planta: 'Fábrica - Uberlândia', Itens: 43, AgingMedioDias: 35.3, Classificacao: '🔴 1. Alto Impacto & Atraso Crítico' },
-  { Planta: 'Indústria - Araras', Itens: 41, AgingMedioDias: 16.8, Classificacao: '🔴 1. Alto Impacto & Atraso Crítico' },
-  { Planta: 'Indústria - Sete Lagoas', Itens: 29, AgingMedioDias: 37.0, Classificacao: '🔴 1. Alto Impacto & Atraso Crítico' },
-];
-
 export default function App() {
-  // Estado da base de dados ativa (inicializa com a base padrão)
-  const [baseDados, setBaseDados] = useState(basePadrao);
-
-  // Estados dos filtros
+  const [baseDados, setBaseDados] = useState([]);
   const [filtroCentro, setFiltroCentro] = useState('Todos');
   const [filtroComprador, setFiltroComprador] = useState('Todos');
   const [filtroGC, setFiltroGC] = useState('Todos');
   const [filtroAging, setFiltroAging] = useState('Todos');
-  const [nomeArquivo, setNomeArquivo] = useState('Base padrão (planilha enviada)');
+  const [nomeArquivo, setNomeArquivo] = useState('Base padrão (Requisições procurement.xlsx)');
 
-  // 1. LEITURA REAL DO ARQUIVO ENVIADO NO UPLOAD
+  // HELPER PARA CLASSIFICAR FAIXA DE AGING BASEADO EM 'Dias RC'
+  const calcularFaixaAging = (dias) => {
+    const d = Number(dias) || 0;
+    if (d <= 15) return '0 - 15 dias';
+    if (d <= 30) return '16 - 30 dias';
+    if (d <= 60) return '31 - 60 dias';
+    return 'Acima de 60 dias';
+  };
+
+  // HELPER PARA EXTRAIR O NOME DO COMPRADOR DA COLUNA 'Ação RC'
+  const extrairComprador = (acao) => {
+    if (!acao) return 'Não atribuído';
+    const acaoStr = String(acao);
+    if (acaoStr.includes(':')) {
+      return acaoStr.split(':')[1].trim();
+    }
+    return acaoStr;
+  };
+
+  // LEITURA E MAPEAMENTO EXATO DA SUA PLANILHA EXCEL
   const handleFileChange = (event) => {
     const file = event.target.files && event.target.files[0];
     if (file) {
@@ -61,38 +60,38 @@ export default function App() {
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
           
-          // Converte planilha em JSON
           const jsonDados = XLSX.utils.sheet_to_json(worksheet);
 
           if (jsonDados && jsonDados.length > 0) {
-            // Normaliza os campos lidos da planilha
-            const dadosFormatados = jsonDados.map((row, idx) => ({
-              id: row.id || row.ID || idx + 1,
-              centro: String(row.Centro || row.centro || row['Centro de Custo'] || 'N/A'),
-              comprador: String(row.Comprador || row.comprador || row['Nome Comprador'] || 'N/A'),
-              grupoCompras: String(row['Grupo de compras'] || row.grupoCompras || row.GC || 'N/A'),
-              faixaAging: String(row['Faixa de aging'] || row.faixaAging || row.Aging || 'N/A'),
-              solicitacoes: Number(row.solicitacoes || row.Solicitações || 1),
-              modificacoes: Number(row.modificacoes || row.Modificações || 0)
-            }));
+            const dadosFormatados = jsonDados.map((row, idx) => {
+              const dias = Number(row['Dias RC']) || 0;
+              return {
+                id: row['Concat'] || row['Requisição de compra'] || idx + 1,
+                rc: row['Requisição de compra'],
+                diasRC: dias,
+                centro: String(row['Nome Centro'] || row['Centro'] || 'Outros'),
+                comprador: extrairComprador(row['Ação RC']),
+                grupoCompras: String(row['GC Compras'] || 'Outros'),
+                faixaAging: calcularFaixaAging(dias),
+                qtdSolicitada: Number(row['Qtd.solicitada']) || 1
+              };
+            });
 
-            // Atualiza o estado com os NOVOS dados
             setBaseDados(dadosFormatados);
             
-            // Reseta a seleção dos filtros para "Todos"
+            // Reseta filtros ao carregar nova base
             setFiltroCentro('Todos');
             setFiltroComprador('Todos');
             setFiltroGC('Todos');
             setFiltroAging('Todos');
 
             setNomeArquivo(`Base carregada: ${file.name}`);
-            alert(`Base "${file.name}" importada com sucesso! (${dadosFormatados.length} itens encontrados)`);
           } else {
             alert('A planilha importada está vazia.');
           }
         } catch (err) {
           console.error("Erro ao ler o arquivo Excel:", err);
-          alert("Ocorreu um erro ao ler o arquivo. Verifique se o formato é válido.");
+          alert("Erro ao ler o arquivo Excel. Verifique a estrutura do arquivo.");
         }
       };
 
@@ -100,22 +99,22 @@ export default function App() {
     }
   };
 
-  // 2. OBTÉM VALORES ÚNICOS DA BASE ATUAL PARA CADA DROPDOWN
+  // DROPDOWNS GERADOS DINAMICAMENTE
   const opcoesFiltros = useMemo(() => {
     const getUnicos = (key) => {
       const vals = baseDados.map(item => item[key]).filter(Boolean);
-      return ['Todos', ...Array.from(new Set(vals))];
+      return ['Todos', ...Array.from(new Set(vals)).sort()];
     };
 
     return {
       centros: getUnicos('centro'),
       compradores: getUnicos('comprador'),
       grupos: getUnicos('grupoCompras'),
-      agings: getUnicos('faixaAging'),
+      agings: ['Todos', '0 - 15 dias', '16 - 30 dias', '31 - 60 dias', 'Acima de 60 dias'],
     };
   }, [baseDados]);
 
-  // 3. FILTRAGEM DINÂMICA DOS DADOS
+  // FILTRAGEM DOS DADOS
   const dadosFiltrados = useMemo(() => {
     return baseDados.filter(item => {
       const matchCentro = filtroCentro === 'Todos' || item.centro === filtroCentro;
@@ -126,35 +125,46 @@ export default function App() {
     });
   }, [baseDados, filtroCentro, filtroComprador, filtroGC, filtroAging]);
 
-  // 4. CÁLCULO DINÂMICO PARA O GRÁFICO DE BARRAS DE AGING COM BASE NOS FILTROS
+  // KPIS DINÂMICOS
+  const totalRCsUnicas = useMemo(() => {
+    return new Set(dadosFiltrados.map(d => d.rc)).size;
+  }, [dadosFiltrados]);
+
+  const leadTimeMedio = useMemo(() => {
+    if (!dadosFiltrados.length) return '0,0';
+    const soma = dadosFiltrados.reduce((acc, curr) => acc + curr.diasRC, 0);
+    return (soma / dadosFiltrados.length).toFixed(1).replace('.', ',');
+  }, [dadosFiltrados]);
+
+  const picoDias = useMemo(() => {
+    if (!dadosFiltrados.length) return 0;
+    return Math.max(...dadosFiltrados.map(d => d.diasRC));
+  }, [dadosFiltrados]);
+
+  const pendenciasCriticas = useMemo(() => {
+    if (!dadosFiltrados.length) return { perc: '0,0', rcs30: 0, rcs60: 0 };
+    const rcs30 = dadosFiltrados.filter(d => d.diasRC > 30).length;
+    const rcs60 = dadosFiltrados.filter(d => d.diasRC > 60).length;
+    const perc = ((rcs30 / dadosFiltrados.length) * 100).toFixed(1).replace('.', ',');
+    return { perc, rcs30, rcs60 };
+  }, [dadosFiltrados]);
+
+  const coberturaOperacional = useMemo(() => {
+    const centrosAtivos = new Set(dadosFiltrados.map(d => d.centro)).size;
+    const qtdTotalUnidades = dadosFiltrados.reduce((acc, curr) => acc + curr.qtdSolicitada, 0);
+    return { centrosAtivos, qtdTotalUnidades };
+  }, [dadosFiltrados]);
+
+  // GRÁFICO BARRAS DE AGING REATIVO
   const agingBarDataDinamico = useMemo(() => {
     const faixas = ['0 - 15 dias', '16 - 30 dias', '31 - 60 dias', 'Acima de 60 dias'];
     return faixas.map(faixa => {
-      const qtdItens = dadosFiltrados.filter(d => d.faixaAging === faixa).length;
-      return {
-        faixa,
-        itens: qtdItens,
-        rcs: Math.ceil(qtdItens * 0.6)
-      };
+      const itensNaFaixa = dadosFiltrados.filter(d => d.faixaAging === faixa);
+      const qtdItens = itensNaFaixa.length;
+      const qtdRCs = new Set(itensNaFaixa.map(d => d.rc)).size;
+      return { faixa, itens: qtdItens, rcs: qtdRCs };
     });
   }, [dadosFiltrados]);
-
-  // EXPORTAÇÃO EXCEL
-  const exportarParaExcel = () => {
-    const wb = XLSX.utils.book_new();
-
-    const kpisData = [
-      { Indicador: 'Volume de Requisições', Valor: `${dadosFiltrados.length} itens` },
-      { Indicador: 'Base Total', Valor: `${baseDados.length} itens` }
-    ];
-    const wsKPIs = XLSX.utils.json_to_sheet(kpisData);
-    XLSX.utils.book_append_sheet(wb, wsKPIs, 'KPIs Executivos');
-
-    const wsFiltrados = XLSX.utils.json_to_sheet(dadosFiltrados);
-    XLSX.utils.book_append_sheet(wb, wsFiltrados, 'Dados Filtrados');
-
-    XLSX.writeFile(wb, 'Dashboard_Requisicoes_Procurement.xlsx');
-  };
 
   return (
     <div className="min-h-screen bg-[#0A0E17] text-[#E2E8F0] p-6 font-sans">
@@ -173,19 +183,8 @@ export default function App() {
           </p>
         </div>
 
-        {/* BOTÕES DE AÇÃO */}
+        {/* BOTÃO DE UPLOAD (BOTÃO DE EXPORTAR REMOVIDO) */}
         <div className="flex items-center gap-3">
-          <button 
-            onClick={exportarParaExcel}
-            type="button"
-            className="px-4 py-2 bg-[#1E293B] hover:bg-[#334155] border border-slate-700 text-xs font-bold text-white rounded-lg transition inline-flex items-center gap-2 select-none shadow-sm cursor-pointer"
-          >
-            <svg className="w-4 h-4 text-[#00E599]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Exportar dados (.xlsx)
-          </button>
-
           <label className="px-4 py-2 bg-[#00E599] hover:bg-[#00C282] text-xs font-bold text-[#0A0E17] rounded-lg transition shadow-lg shadow-[#00E599]/10 cursor-pointer inline-flex items-center gap-2 select-none">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -201,7 +200,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* BARRA DE FILTROS COM CONTEÚDO DINÂMICO */}
+      {/* BARRA DE FILTROS */}
       <div className="bg-[#111726] p-4 rounded-xl border border-slate-800/80 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full md:w-auto flex-1 max-w-4xl">
           
@@ -262,7 +261,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* CONTAGEM DINÂMICA DE ITENS FILTRADOS */}
+        {/* CONTAGEM DINÂMICA DE ITENS */}
         <div className="text-right">
           <span className="text-xs font-semibold text-slate-400">
             {dadosFiltrados.length} de {baseDados.length} itens
@@ -270,32 +269,32 @@ export default function App() {
         </div>
       </div>
 
-      {/* CARDS DE KPIS DINÂMICOS */}
+      {/* CARDS DE KPIS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-[#111726] p-4 rounded-xl border border-slate-800/80">
           <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">VOLUME DE REQUIÇÕES</p>
-          <h3 className="text-2xl font-black text-[#00E599] mt-1">{Math.ceil(dadosFiltrados.length * 0.6)} RCs</h3>
+          <h3 className="text-2xl font-black text-[#00E599] mt-1">{totalRCsUnicas} RCs</h3>
           <p className="text-xs text-slate-400 mt-1">{dadosFiltrados.length} itens solicitados</p>
         </div>
 
         <div className="bg-[#111726] p-4 rounded-xl border border-slate-800/80">
           <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">LEAD TIME MÉDIO (DIAS RC)</p>
-          <h3 className="text-2xl font-black text-white mt-1">24,3 dias</h3>
-          <p className="text-xs text-slate-400 mt-1">Pico de 85 dias</p>
+          <h3 className="text-2xl font-black text-white mt-1">{leadTimeMedio} dias</h3>
+          <p className="text-xs text-slate-400 mt-1">Pico de {picoDias} dias</p>
         </div>
 
         <div className="bg-[#111726] p-4 rounded-xl border border-slate-800/80">
           <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">PENDÊNCIAS CRÍTICAS</p>
-          <h3 className="text-2xl font-black text-white mt-1">
-            {baseDados.length ? ((dadosFiltrados.length / baseDados.length) * 100).toFixed(1) : 0}%
-          </h3>
-          <p className="text-xs text-slate-400 mt-1">Filtrados sobre a base geral</p>
+          <h3 className="text-2xl font-black text-white mt-1">{pendenciasCriticas.perc}%</h3>
+          <p className="text-xs text-slate-400 mt-1">
+            {pendenciasCriticas.rcs30} RCs &gt; 30 dias · {pendenciasCriticas.rcs60} &gt; 60 dias
+          </p>
         </div>
 
         <div className="bg-[#111726] p-4 rounded-xl border border-slate-800/80">
           <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">COBERTURA OPERACIONAL</p>
-          <h3 className="text-2xl font-black text-white mt-1">{opcoesFiltros.centros.length - 1} centros</h3>
-          <p className="text-xs text-slate-400 mt-1">Unidades ativas na base</p>
+          <h3 className="text-2xl font-black text-white mt-1">{coberturaOperacional.centrosAtivos} centros</h3>
+          <p className="text-xs text-slate-400 mt-1">{coberturaOperacional.qtdTotalUnidades.toLocaleString('pt-BR')} unidades solicitadas</p>
         </div>
       </div>
 
@@ -332,7 +331,7 @@ export default function App() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
           <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">DISTRIBUIÇÃO POR FAIXA DE AGING</h2>
-          <p className="text-[11px] text-slate-400 mb-4">Itens e RCs por tempo em aberto (Reativo aos Filtros)</p>
+          <p className="text-[11px] text-slate-400 mb-4">Itens e RCs por tempo em aberto</p>
           
           <div className="h-60">
             <ResponsiveContainer width="100%" height="100%">
