@@ -12,8 +12,8 @@ import {
   ResponsiveContainer
 } from 'recharts';
 
-// Exemplo de estrutura dos dados reais (substitua ou alimente via upload de planilha)
-const dadosReaisExemplo = [
+// Dados de exemplo (substituídos se fizer upload do Excel)
+const dadosIniciais = [
   { id: 1, dataSolicitacao: '2026-01-10', comprador: 'Ana Silva', centro: 'Planta A', tratativa: true, diasRC: 5 },
   { id: 2, dataSolicitacao: '2026-01-15', comprador: 'Carlos Souza', centro: 'Planta B', tratativa: false, diasRC: 12 },
   { id: 3, dataSolicitacao: '2026-02-01', comprador: 'Ana Silva', centro: 'Planta B', tratativa: true, diasRC: 8 },
@@ -23,12 +23,12 @@ const dadosReaisExemplo = [
 ];
 
 export default function PainelProcurement() {
-  const [dados, setDados] = useState(dadosReaisExemplo);
+  const [dados, setDados] = useState(dadosIniciais);
   const [abaAtiva, setAbaAtiva] = useState('evolucao');
   const [filtroComprador, setFiltroComprador] = useState('Todos');
   const [filtroCentro, setFiltroCentro] = useState('Todos');
 
-  // --- LEITURA E CONVERSÃO DE ARQUIVO EXCEL ---
+  // --- LEITURA DO ARQUIVO EXCEL ---
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -41,9 +41,8 @@ export default function PainelProcurement() {
       const ws = wb.Sheets[wsname];
       const dataParsed = XLSX.utils.sheet_to_json(ws);
 
-      // Mapeamento dinâmico básico para garantir o formato exigido
       const formatados = dataParsed.map((item, idx) => ({
-        id: item.id || idx,
+        id: item.id || idx + 1,
         dataSolicitacao: item.dataSolicitacao || item.Data || '',
         comprador: item.comprador || item.Comprador || 'Não atribuído',
         centro: item.centro || item.Centro || 'Geral',
@@ -56,7 +55,7 @@ export default function PainelProcurement() {
     reader.readAsBinaryString(file);
   };
 
-  // --- FILTRAGEM DOS DADOS ---
+  // --- FILTRAGEM ---
   const dadosFiltrados = useMemo(() => {
     return dados.filter((item) => {
       const matchComprador = filtroComprador === 'Todos' || item.comprador === filtroComprador;
@@ -65,14 +64,13 @@ export default function PainelProcurement() {
     });
   }, [dados, filtroComprador, filtroCentro]);
 
-  // --- AGREGADOR PARA A EVOLUÇÃO TEMPORAL ---
+  // --- AGREGADOR MENSAL PARA A EVOLUÇÃO TEMPORAL ---
   const evolucaoTemporal = useMemo(() => {
     const agrupado = {};
 
     dadosFiltrados.forEach((item) => {
       if (!item.dataSolicitacao) return;
 
-      // Suporta formato YYYY-MM-DD ou DD/MM/YYYY
       let anoMes = '';
       if (item.dataSolicitacao.includes('-')) {
         anoMes = item.dataSolicitacao.substring(0, 7);
@@ -112,13 +110,12 @@ export default function PainelProcurement() {
       .sort((a, b) => a.mes.localeCompare(b.mes));
   }, [dadosFiltrados]);
 
-  // Lista para Seletores/Filtros
   const compradores = useMemo(() => ['Todos', ...new Set(dados.map((d) => d.comprador))], [dados]);
   const centros = useMemo(() => ['Todos', ...new Set(dados.map((d) => d.centro))], [dados]);
 
   return (
     <div style={{ backgroundColor: '#f4f6f9', minHeight: '100vh', padding: '20px', fontFamily: 'Segoe UI, sans-serif' }}>
-      {/* HEADER E FILTROS */}
+      {/* BARRA SUPERIOR DE FILTROS E IMPORTAÇÃO */}
       <div style={{ backgroundColor: '#002060', color: '#fff', padding: '15px 20px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
         <h2 style={{ margin: 0, fontSize: '20px' }}>Dashboard de Procurement — Requisições de Compras</h2>
         
@@ -146,7 +143,7 @@ export default function PainelProcurement() {
         </div>
       </div>
 
-      {/* NAVEGAÇÃO DE ABAS */}
+      {/* SELEÇÃO DE ABAS */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
         <button
           onClick={() => setAbaAtiva('evolucao')}
@@ -162,10 +159,10 @@ export default function PainelProcurement() {
         </button>
       </div>
 
-      {/* ABA 1: EVOLUÇÃO TEMPORAL */}
+      {/* ABA PRINCIPAL: EVOLUÇÃO TEMPORAL */}
       {abaAtiva === 'evolucao' && (
         <div>
-          {/* CARDS DE KPI */}
+          {/* PAINEL DE KPIS */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
             <div style={{ backgroundColor: '#fff', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', borderLeft: '5px solid #002060' }}>
               <span style={{ fontSize: '12px', color: '#666' }}>Total de RCs Solicitadas</span>
@@ -194,10 +191,10 @@ export default function PainelProcurement() {
             </div>
           </div>
 
-          {/* GRÁFICO DE EVOLUÇÃO TEMPORAL MISTO */}
-          <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
-            <h4 style={{ margin: '0 0 15px 0', color: '#002060' }}>Volume Mensal de Solicitações vs. Aging Médio</h4>
-            <div style={{ width: '100%', height: 360 }}>
+          {/* ÁREA DA EVOLUÇÃO TEMPORAL (GRÁFICO MISTO) */}
+          <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+            <h4 style={{ margin: '0 0 15px 0', color: '#002060' }}>Evolução Mensal de Solicitações e Aging Médio</h4>
+            <div style={{ width: '100%', height: 380 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={evolucaoTemporal}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -216,7 +213,7 @@ export default function PainelProcurement() {
         </div>
       )}
 
-      {/* ABA 2: VISUALIZAÇÃO DE TABELA */}
+      {/* ABA: BASE DE DADOS */}
       {abaAtiva === 'detalhes' && (
         <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', overflowX: 'auto' }}>
           <h4 style={{ margin: '0 0 15px 0', color: '#002060' }}>Registros Filtrados ({dadosFiltrados.length})</h4>
