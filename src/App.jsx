@@ -1,17 +1,54 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, LabelList
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, PieChart, Pie, Cell, LabelList, ComposedChart, Line, Legend
 } from 'recharts';
 
-export default function PainelProcurement() {
-  const [dados, setDados] = useState([]);
-  const [filtroGC, setFiltroGC] = useState('Todos');
-  const [filtroCentro, setFiltroCentro] = useState('Todos');
-  const [dataSnapshot, setDataSnapshot] = useState('Snapshot Atual');
+// ------------------------------------------------------------------
+// HELPERS E UTILITÁRIOS
+// ------------------------------------------------------------------
+const extrairComprador = (acao) => {
+  if (!acao) return 'Não atribuído';
+  const acaoStr = String(acao);
+  return acaoStr.includes(':') ? acaoStr.split(':')[1].trim() : acaoStr;
+};
 
-  // --- LEITURA E TRATAMENTO DA PLANILHA DE PROCUREMENT ---
+const calcularFaixaAging = (dias) => {
+  const d = Number(dias) || 0;
+  if (d <= 15) return '0 - 15 dias';
+  if (d <= 30) return '16 - 30 dias';
+  if (d <= 60) return '31 - 60 dias';
+  return 'Acima de 60 dias';
+};
+
+const normalizarObs = (obs) => {
+  if (!obs) return 'SEM MOTIVO DECLARADO';
+  return String(obs).trim().replace(/\s+/g, ' ').toUpperCase();
+};
+
+const parseData = (str) => {
+  if (!str) return null;
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const formatarData = (str) => {
+  const d = parseData(str);
+  return d ? d.toLocaleDateString('pt-BR') : '—';
+};
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+
+// ------------------------------------------------------------------
+// COMPONENTE PRINCIPAL DO DASHBOARD
+// ------------------------------------------------------------------
+export default function DashboardProcurement() {
+  const [dados, setDados] = useState([]);
+  const [filtroComprador, setFiltroComprador] = useState('TODOS');
+  const [filtroCentro, setFiltroCentro] = useState('TODOS');
+
+  // Manipulador de Upload de Planilha (.xlsx, .xls, .csv)
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -22,208 +59,215 @@ export default function PainelProcurement() {
       const wb = XLSX.read(bstr, { type: 'binary' });
       const wsname = wb.SheetNames[0];
       const ws = wb.Sheets[wsname];
-      const dataParsed = XLSX.utils.sheet_to_json(ws);
+      const dataRaw = XLSX.utils.sheet_to_json(ws);
 
-      const formatados = dataParsed.map((item, idx) => ({
-        id: item['Concat'] || `${item['Requisição de compra']}-${item['Item ReqC']}` || idx,
-        gcCompras: item['GC Compras'] || item['Comprador'] || 'Não Atribuído',
-        acaoRC: item['Ação RC'] || 'Outros',
-        obs: item['OBS'] || 'Sem OBS',
-        tratativa: item['Tratativa'] ? String(item['Tratativa']).trim() : null,
-        temPedido: Boolean(item['Tratativa'] && String(item['Tratativa']).trim() !== ''),
-        centro: item['Nome Centro'] || item['Centro'] || 'Geral',
-        diasRC: Number(item['Dias RC'] || 0),
-        dataSolicitacao: item['Data da solicitação'] || '',
-        dateSnapshot: item['SnapshotDate'] || new Date().toLocaleDateString('pt-BR')
-      }));
+      // Mapeamento dinâmico conforme estrutura da planilha inserida
+      const dadosTratados = dataRaw.map((row, idx) => {
+        const diasRC = Number(row['Dias RC'] || row['diasRC'] || 0);
+        return {
+          id: row['ID'] || idx,
+          rc: String(row['Requisição de compras'] || row['rc'] || ''),
+          itemRc: row['Item da requisição de compras'] || row['itemRc'],
+          diasRC: diasRC,
+          centro: row['Centro'] || row['centro'] || 'Não informado',
+          comprador: extrairComprador(row['Última ação efetuada por'] || row['comprador']),
+          grupoCompras: row['Grupo de compras'] || row['grupoCompras'],
+          faixaAging: calcularFaixaAging(diasRC),
+          qtdSolicitada: Number(row['Quantidade solicitada'] || row['qtdSolicitada'] || 0),
+          material: String(row['Material'] || row['material'] || ''),
+          textoBreve: row['Texto breve'] || row['textoBreve'] || '',
+          dataSolicitacao: row['Data da solicitação'] || row['dataSolicitacao'],
+          remessa: row['Data de remessa'] || row['remessa'],
+          tratativa: row['Tratativa'] || row['tratativa'] || null,
+          obs: row['Observação do Comprador'] || row['obs'] || null
+        };
+      });
 
-      setDados(formatados);
+      setDados(dadosTratados);
     };
     reader.readAsBinaryString(file);
   };
 
-  // --- FILTRAGEM DOS DADOS ---
+  // Filtragem dos dados
   const dadosFiltrados = useMemo(() => {
-    return dados.filter((item) => {
-      const matchGC = filtroGC === 'Todos' || item.gcCompras === filtroGC;
-      const matchCentro = filtroCentro === 'Todos' || item.centro === filtroCentro;
-      return matchGC && matchCentro;
+    return dados.filter(item => {
+      const matchComprador = filtroComprador === 'TODOS' || item.comprador === filtroComprador;
+      const matchCentro = filtroCentro === 'TODOS' || item.centro === filtroCentro;
+      return matchComprador && matchCentro;
     });
-  }, [dados, filtroGC, filtroCentro]);
+  }, [dados, filtroComprador, filtroCentro]);
 
-  // Total Geral Filtrado
-  const totalGeral = dadosFiltrados.length || 1;
+  // Lista de Filtros Únicos
+  const compradoresUnicos = useMemo(() => Array.from(new Set(dados.map(d => d.comprador))), [dados]);
+  const centrosUnicos = useMemo(() => Array.from(new Set(dados.map(d => d.centro))), [dados]);
 
-  // --- 1. QUADRANTE EVOLUÇÃO TEMPORAL (ESTILO BI DO LAURENCE) ---
-  const evolucaoPorGC = useMemo(() => {
-    const agrupado = {};
+  // 1. MÉTRICAS E KPIs
+  const totalItens = dadosFiltrados.length;
+  const totalComPedido = useMemo(() => {
+    return dadosFiltrados.filter(d => {
+      const t = String(d.tratativa || '').toLowerCase();
+      const o = String(d.obs || '').toLowerCase();
+      return t.includes('gerar pedido') || t.includes('pedido gerado') || o.includes('pedido gerado');
+    }).length;
+  }, [dadosFiltrados]);
 
-    dadosFiltrados.forEach((item) => {
-      const gc = item.gcCompras;
-      if (!agrupado[gc]) agrupado[gc] = { gc, total: 0 };
-      agrupado[gc].total += 1;
+  const totalSemPedido = totalItens - totalComPedido;
+  const percComPedido = totalItens ? ((totalComPedido / totalItens) * 100).toFixed(1) : '0.0';
+  const percSemPedido = totalItens ? ((totalSemPedido / totalItens) * 100).toFixed(1) : '0.0';
+
+  // 2. EVOLUÇÃO TEMPORAL (Padrão BI Laurence: ComposedChart - Barras + Linha de Tendência)
+  const dadosEvolucaoTemporal = useMemo(() => {
+    const agrupa = {};
+    dadosFiltrados.forEach(item => {
+      const data = item.dataSolicitacao ? formatarData(item.dataSolicitacao) : 'Sem Data';
+      if (!agrupa[data]) agrupa[data] = 0;
+      agrupa[data] += 1;
     });
 
-    return Object.values(agrupado)
-      .map(d => ({
-        ...d,
-        porcentagem: ((d.total / totalGeral) * 100).toFixed(1)
-      }))
-      .sort((a, b) => b.total - a.total);
-  }, [dadosFiltrados, totalGeral]);
+    let acumulado = 0;
+    return Object.keys(agrupa).map(data => {
+      acumulado += agrupa[data];
+      const pct = totalItens ? ((agrupa[data] / totalItens) * 100).toFixed(1) : 0;
+      return {
+        data,
+        qtd: agrupa[data],
+        pct: Number(pct),
+        qtdAcumulada: acumulado
+      };
+    });
+  }, [dadosFiltrados, totalItens]);
 
-  // --- 2. QUADRANTE EVOLUÇÃO DAS TRATATIVAS (GERARAM PEDIDO VS NÃO GERARAM) ---
-  const evolucaoTratativas = useMemo(() => {
-    const geraramPedido = dadosFiltrados.filter(d => d.temPedido).length;
-    const naoGeraramPedido = dadosFiltrados.length - geraramPedido;
+  // 3. MOTIVOS DE PENDÊNCIAS E ANÁLISE DE ATRASO DA REMESSA (Integrado)
+  const dadosMotivosAtraso = useMemo(() => {
+    const agrupa = {};
+    const hoje = new Date();
 
-    const pctGeraram = ((geraramPedido / totalGeral) * 100).toFixed(1);
-    const pctNaoGeraram = ((naoGeraramPedido / totalGeral) * 100).toFixed(1);
+    dadosFiltrados.forEach(item => {
+      let motivo = normalizarObs(item.obs);
+      const dataRemessa = parseData(item.remessa);
+      
+      // Validação de atraso na data de remessa
+      if (dataRemessa && dataRemessa < hoje) {
+        motivo = `[FORA DO PRAZO REMESSA] ${motivo}`;
+      }
 
+      if (!agrupa[motivo]) agrupa[motivo] = 0;
+      agrupa[motivo] += 1;
+    });
+
+    return Object.keys(agrupa).map(motivo => ({
+      motivo,
+      qtd: agrupa[motivo],
+      pct: totalItens ? ((agrupa[motivo] / totalItens) * 100).toFixed(1) : '0.0'
+    })).sort((a, b) => b.qtd - a.qtd);
+  }, [dadosFiltrados, totalItens]);
+
+  // 4. EVOLUÇÃO DAS TRATATIVAS (Lógica Solicitada: Entraram x Geraram Pedido x Não Geraram)
+  const dadosTratativasFunil = useMemo(() => {
     return [
-      { name: 'Geraram Pedido', valor: geraramPedido, pct: pctGeraram, fill: '#00a86b' },
-      { name: 'Não Geraram Pedido', valor: naoGeraramPedido, pct: pctNaoGeraram, fill: '#e74c3c' }
+      { name: 'Com Pedido Gerado', valor: totalComPedido, pct: percComPedido },
+      { name: 'Sem Pedido / Em Tratativa', valor: totalSemPedido, pct: percSemPedido }
     ];
-  }, [dadosFiltrados, totalGeral]);
-
-  // --- 3. QUADRANTE PRINCIPAIS MOTIVOS DE PENDÊNCIAS (OBS / AÇÃO RC) ---
-  const motivosPendencias = useMemo(() => {
-    const pendentes = dadosFiltrados.filter(d => !d.temPedido);
-    const totalPendentes = pendentes.length || 1;
-    const contagem = {};
-
-    pendentes.forEach(d => {
-      const motivo = d.obs !== 'Sem OBS' ? d.obs : (d.acaoRC || 'Sem Motivo Especificado');
-      contagem[motivo] = (contagem[motivo] || 0) + 1;
-    });
-
-    return Object.keys(contagem)
-      .map(m => ({
-        motivo: m,
-        qtd: contagem[m],
-        pct: ((contagem[m] / totalPendentes) * 100).toFixed(1),
-        pctGeral: ((contagem[m] / totalGeral) * 100).toFixed(1)
-      }))
-      .sort((a, b) => b.qtd - a.qtd)
-      .slice(0, 8); // Top 8 motivos
-  }, [dadosFiltrados, totalGeral]);
-
-  // Listas para Filtros
-  const listaGC = useMemo(() => ['Todos', ...new Set(dados.map(d => d.gcCompras))], [dados]);
-  const listaCentros = useMemo(() => ['Todos', ...new Set(dados.map(d => d.centro))], [dados]);
+  }, [totalComPedido, totalSemPedido, percComPedido, percSemPedido]);
 
   return (
-    <div style={{ backgroundColor: '#f4f6f9', minHeight: '100vh', padding: '20px', fontFamily: 'Segoe UI, sans-serif' }}>
-      
-      {/* CABEÇALHO */}
-      <div style={{ backgroundColor: '#002060', color: '#fff', padding: '15px 20px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', backgroundColor: '#f4f6f9' }}>
+      <h2>Dashboard de Procurements & Requisições</h2>
+
+      {/* ÁREA DE UPLOAD E FILTROS */}
+      <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', background: '#fff', padding: '15px', borderRadius: '8px' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '20px' }}>Dashboard de Requisições Pendentes</h2>
-          <span style={{ fontSize: '12px', opacity: 0.8 }}>Visualização com Valores Quantitativos e Percentuais (%)</span>
+          <label><strong>Upload Planilha (.xlsx): </strong></label>
+          <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} />
         </div>
-        
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div>
-            <label style={{ fontSize: '11px', display: 'block' }}>Carregar Excel (.xlsx):</label>
-            <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} style={{ color: '#fff', fontSize: '12px' }} />
-          </div>
-          <div>
-            <label style={{ fontSize: '11px', display: 'block' }}>Gestão Compras (GC):</label>
-            <select value={filtroGC} onChange={e => setFiltroGC(e.target.value)} style={{ padding: '5px', borderRadius: '4px' }}>
-              {listaGC.map(gc => <option key={gc} value={gc}>{gc}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize: '11px', display: 'block' }}>Centro:</label>
-            <select value={filtroCentro} onChange={e => setFiltroCentro(e.target.value)} style={{ padding: '5px', borderRadius: '4px' }}>
-              {listaCentros.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
+        <div>
+          <label><strong>Comprador: </strong></label>
+          <select value={filtroComprador} onChange={e => setFiltroComprador(e.target.value)}>
+            <option value="TODOS">Todos</option>
+            {compradoresUnicos.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div>
+          <label><strong>Centro: </strong></label>
+          <select value={filtroCentro} onChange={e => setFiltroCentro(e.target.value)}>
+            <option value="TODOS">Todos</option>
+            {centrosUnicos.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
       </div>
 
-      {/* CARDS DE RESUMO (QUANTITATIVOS E PERCENTUAIS) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px', marginBottom: '20px' }}>
-        <div style={{ backgroundColor: '#fff', padding: '15px', borderRadius: '8px', borderLeft: '5px solid #002060', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-          <span style={{ fontSize: '12px', color: '#666' }}>Total de Requisições</span>
-          <h3 style={{ margin: '5px 0 0 0', color: '#002060' }}>{dadosFiltrados.length} <span style={{ fontSize: '14px', color: '#666' }}>(100%)</span></h3>
+      {/* KPI CARDS (DADOS QUANTITATIVOS E PERCENTUAIS) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', marginBottom: '20px' }}>
+        <div style={{ background: '#fff', padding: '15px', borderRadius: '8px', borderLeft: '5px solid #0088FE' }}>
+          <h4>Total de RCs Analisadas</h4>
+          <h3>{totalItens} <span style={{ fontSize: '14px', color: '#666' }}>(100%)</span></h3>
         </div>
-        <div style={{ backgroundColor: '#fff', padding: '15px', borderRadius: '8px', borderLeft: '5px solid #00a86b', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-          <span style={{ fontSize: '12px', color: '#666' }}>Geraram Pedido</span>
-          <h3 style={{ margin: '5px 0 0 0', color: '#00a86b' }}>
-            {evolucaoTratativas[0]?.valor} <span style={{ fontSize: '14px' }}>({evolucaoTratativas[0]?.pct}%)</span>
-          </h3>
+        <div style={{ background: '#fff', padding: '15px', borderRadius: '8px', borderLeft: '5px solid #00C49F' }}>
+          <h4>RCs com Pedido Gerado</h4>
+          <h3>{totalComPedido} <span style={{ fontSize: '14px', color: '#666' }}>({percComPedido}%)</span></h3>
         </div>
-        <div style={{ backgroundColor: '#fff', padding: '15px', borderRadius: '8px', borderLeft: '5px solid #e74c3c', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-          <span style={{ fontSize: '12px', color: '#666' }}>Não Geraram Pedido (Pendentes)</span>
-          <h3 style={{ margin: '5px 0 0 0', color: '#e74c3c' }}>
-            {evolucaoTratativas[1]?.valor} <span style={{ fontSize: '14px' }}>({evolucaoTratativas[1]?.pct}%)</span>
-          </h3>
+        <div style={{ background: '#fff', padding: '15px', borderRadius: '8px', borderLeft: '5px solid #FF8042' }}>
+          <h4>RCs Pendentes / Sem Pedido</h4>
+          <h3>{totalSemPedido} <span style={{ fontSize: '14px', color: '#666' }}>({percSemPedido}%)</span></h3>
         </div>
       </div>
 
-      {/* GRID DE QUADRANTES */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+      {/* QUADRANTES VISUAIS */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
         
-        {/* QUADRANTE 1: EVOLUÇÃO TEMPORAL (ESTILO BI LAURENCE BY GC COMPRAS) */}
-        <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', gridColumn: 'span 2' }}>
-          <h4 style={{ margin: '0 0 10px 0', color: '#002060' }}>Evolução Temporal / Qtd. Requisições por Gestão de Compras</h4>
-          <div style={{ width: '100%', height: 320 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={evolucaoPorGC} margin={{ top: 20, right: 30, left: 0, bottom: 50 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="gc" interval={0} angle={-25} textAnchor="end" />
-                <YAxis />
-                <Tooltip formatter={(value, name, item) => [`${value} un (${item.payload.porcentagem}%)`, 'Volume']} />
-                <Bar dataKey="total" fill="#002060">
-                  <LabelList dataKey="total" position="top" formatter={(val) => val} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+        {/* QUADRANTE 1: EVOLUÇÃO TEMPORAL (BI LAURENCE - COMPOSED CHART) */}
+        <div style={{ background: '#fff', padding: '15px', borderRadius: '8px' }}>
+          <h3>Evolução Temporal das Solicitações (Padrão BI)</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <ComposedChart data={dadosEvolucaoTemporal}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="data" />
+              <YAxis yAxisId="left" label={{ value: 'Qtd RCs', angle: -90, position: 'insideLeft' }} />
+              <YAxis yAxisId="right" orientation="right" label={{ value: '% Vol', angle: 90, position: 'insideRight' }} />
+              <Tooltip formatter={(value, name) => [name === 'pct' ? `${value}%` : value, name === 'qtd' ? 'Volume Qtd' : 'Proporção %']} />
+              <Legend />
+              <Bar yAxisId="left" dataKey="qtd" name="Volume RCs (Qtd)" fill="#0088FE" />
+              <Line yAxisId="right" type="monotone" dataKey="pct" name="Participação (%)" stroke="#FF8042" strokeWidth={2} />
+            </ComposedChart>
+          </ResponsiveContainer>
         </div>
 
-        {/* QUADRANTE 2: EVOLUÇÃO DAS TRATATIVAS (PEDIDOS GERADOS VS NÃO GERADOS) */}
-        <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-          <h4 style={{ margin: '0 0 15px 0', color: '#002060' }}>Evolução das Tratativas (Resultado RCs)</h4>
-          <div style={{ width: '100%', height: 260 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={evolucaoTratativas} dataKey="valor" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, valor, pct }) => `${name}: ${valor} (${pct}%)`}>
-                  {evolucaoTratativas.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value, name, props) => [`${value} un (${props.payload.pct}%)`, name]} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* QUADRANTE 3: PRINCIPAIS MOTIVOS DE PENDÊNCIAS */}
-        <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-          <h4 style={{ margin: '0 0 15px 0', color: '#002060' }}>Principais Motivos de Pendências (OBS / Ação)</h4>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f0f4f8', borderBottom: '2px solid #ddd', textAlign: 'left' }}>
-                  <th style={{ padding: '8px' }}>Motivo / Observação</th>
-                  <th style={{ padding: '8px', textAlign: 'right' }}>Qtd. Absoluta</th>
-                  <th style={{ padding: '8px', textAlign: 'right' }}>% do Total Pendente</th>
-                </tr>
-              </thead>
-              <tbody>
-                {motivosPendencias.map((m, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
-                    <td style={{ padding: '8px' }}>{m.motivo}</td>
-                    <td style={{ padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>{m.qtd}</td>
-                    <td style={{ padding: '8px', textAlign: 'right', color: '#e74c3c', fontWeight: 'bold' }}>{m.pct}%</td>
-                  </tr>
+        {/* QUADRANTE 2: EVOLUÇÃO DAS TRATATIVAS (LÓGICA CONVERSÃO/FUNIL) */}
+        <div style={{ background: '#fff', padding: '15px', borderRadius: '8px' }}>
+          <h3>Evolução das Tratativas (Resultado RCs)</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={dadosTratativasFunil}
+                cx="50%"
+                cy="50%"
+                outerRadius={100}
+                dataKey="valor"
+                label={({ name, valor, pct }) => `${name}: ${valor} (${pct}%)`}
+              >
+                {dadosTratativasFunil.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </Pie>
+              <Tooltip formatter={(value) => [`${value} RCs`, 'Quantidade']} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* QUADRANTE 3: PRINCIPAIS MOTIVOS DE PENDÊNCIAS E ANÁLISE DE ATRASO NA REMESSA */}
+        <div style={{ background: '#fff', padding: '15px', borderRadius: '8px', gridColumn: 'span 2' }}>
+          <h3>Principais Motivos de Pendências e Cumprimento da Data de Remessa</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={dadosMotivosAtraso} layout="vertical" margin={{ left: 150 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis type="number" />
+              <YAxis type="category" dataKey="motivo" width={220} style={{ fontSize: '11px' }} />
+              <Tooltip formatter={(value, name, props) => [`${value} RCs (${props.payload.pct}%)`, 'Total']} />
+              <Bar dataKey="qtd" fill="#8884d8">
+                <LabelList dataKey="qtd" position="right" formatter={(val, entry) => `${val} un. (${dadosMotivosAtraso.find(d => d.qtd === val)?.pct || 0}%)`} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
       </div>
