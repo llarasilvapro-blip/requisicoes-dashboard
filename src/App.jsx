@@ -44,9 +44,6 @@ const parseData = (str) => {
 
 const HOJE = new Date('2026-09-16');
 
-// PALETA DE CORES
-const CORES_PIZZA = ['#00E599', '#3B82F6', '#F59E0B', '#EC4899', '#8B5CF6', '#14B8A6', '#6366F1'];
-
 export default function App() {
   const [baseDados, setBaseDados] = useState([]);
   const [filtroCentro, setFiltroCentro] = useState('Todos');
@@ -262,7 +259,7 @@ export default function App() {
     return ((sem / total) * 100).toFixed(1).replace('.', ',');
   }, [dadosFiltrados, tratativaStatusData]);
 
-  // 1. DADOS PARA O GRÁFICO DE PIZZA (STATUS DE TRATATIVA)
+  // DADOS PARA BARRAS DE TRATATIVAS
   const tratativaPieData = useMemo(() => {
     const contagem = {};
     dadosFiltrados.forEach(d => {
@@ -278,7 +275,7 @@ export default function App() {
     })).sort((a, b) => b.value - a.value);
   }, [dadosFiltrados]);
 
-  // 2. DADOS PARA O GRÁFICO DE ANÁLISE DE DATAS DE REMESSA
+  // DADOS PARA PIZZA DE REMESSA
   const analiseRemessaData = useMemo(() => {
     return [
       { status: 'Remessa No Prazo', qtd: remessaDataReal.noPrazo, fill: '#00E599' },
@@ -602,34 +599,65 @@ export default function App() {
         </div>
       </div>
 
-      {/* SEÇÃO DUPLA FINAL: PIZZA DE TRATATIVAS + ANÁLISE DE DATAS DE REMESSA LADO A LADO */}
+      {/* SEÇÃO DUPLA FINAL: BARRAS DE TRATATIVAS + PIZZA DE REMESSA LADO A LADO */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         
-        {/* GRÁFICO DE PIZZA: STATUS DE TRATATIVA */}
+        {/* GRÁFICO DE BARRAS: STATUS DE TRATATIVA */}
         <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
           <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">DISTRIBUIÇÃO DOS STATUS DE TRATATIVA</h2>
-          <p className="text-[11px] text-slate-400 mb-2">Proporção total de itens por status de acompanhamento</p>
+          <p className="text-[11px] text-slate-400 mb-4">Volume total de itens por status de acompanhamento/tratativa registrada</p>
           <div className="h-64">
             {tratativaPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={tratativaPieData} margin={{ top: 15, right: 30, left: 0, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
+                  <XAxis dataKey="name" stroke="#64748B" fontSize={10} interval={0} angle={-15} textAnchor="end" />
+                  <YAxis stroke="#64748B" fontSize={10} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#171E2E', borderColor: '#334155', borderRadius: '8px' }}
+                    formatter={(value, name, props) => [`${value} itens (${props.payload.perc}%)`, 'Volume']}
+                  />
+                  <Bar dataKey="value" fill="#00E599" radius={[4, 4, 0, 0]} name="Itens">
+                    <LabelList dataKey="perc" position="top" formatter={(v) => `${v}%`} fill="#94A3B8" fontSize={10} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-xs text-slate-500">
+                Faça o upload do arquivo Excel para carregar a distribuição.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* GRÁFICO DE PIZZA: ANÁLISE DAS DATAS DE REMESSA */}
+        <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
+          <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">ANÁLISE DAS DATAS DE REMESSA</h2>
+          <p className="text-[11px] text-slate-400 mb-2">Proporção de itens por cumprimento do prazo de remessa prometido</p>
+          <div className="h-64">
+            {dadosFiltrados.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={tratativaPieData}
-                    dataKey="value"
-                    nameKey="name"
+                    data={analiseRemessaData.filter(d => d.qtd > 0)}
+                    dataKey="qtd"
+                    nameKey="status"
                     cx="50%"
                     cy="50%"
                     outerRadius={80}
                     innerRadius={45}
                     paddingAngle={2}
                   >
-                    {tratativaPieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={CORES_PIZZA[index % CORES_PIZZA.length]} />
+                    {analiseRemessaData.filter(d => d.qtd > 0).map((entry, index) => (
+                      <Cell key={`cell-remessa-pie-${index}`} fill={entry.fill} />
                     ))}
                   </Pie>
                   <Tooltip
                     contentStyle={{ backgroundColor: '#171E2E', borderColor: '#334155', borderRadius: '8px' }}
-                    formatter={(value, name, props) => [`${value} itens (${props.payload.perc}%)`, name]}
+                    formatter={(value, name) => [
+                      `${value} itens (${((value / dadosFiltrados.length) * 100).toFixed(1).replace('.', ',')}%)`,
+                      name
+                    ]}
                   />
                   <Legend
                     layout="vertical"
@@ -641,38 +669,7 @@ export default function App() {
               </ResponsiveContainer>
             ) : (
               <div className="h-full flex items-center justify-center text-xs text-slate-500">
-                Faça o upload do ficheiro Excel para carregar os dados.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* GRÁFICO DE BARRAS: ANÁLISE DAS DATAS DE REMESSA */}
-        <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
-          <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">ANÁLISE DAS DATAS DE REMESSA</h2>
-          <p className="text-[11px] text-slate-400 mb-4">Volume de itens por cumprimento do prazo de remessa prometido</p>
-          <div className="h-64">
-            {dadosFiltrados.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={analiseRemessaData} margin={{ top: 15, right: 30, left: 0, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
-                  <XAxis dataKey="status" stroke="#64748B" fontSize={10} />
-                  <YAxis stroke="#64748B" fontSize={10} allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#171E2E', borderColor: '#334155', borderRadius: '8px' }}
-                    formatter={(value) => [`${value} itens`, 'Volume']}
-                  />
-                  <Bar dataKey="qtd" radius={[4, 4, 0, 0]} name="Itens">
-                    {analiseRemessaData.map((entry, index) => (
-                      <Cell key={`cell-remessa-${index}`} fill={entry.fill} />
-                    ))}
-                    <LabelList dataKey="qtd" position="top" fill="#94A3B8" fontSize={10} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-xs text-slate-500">
-                Faça o upload do ficheiro Excel para carregar a análise de remessa.
+                Faça o upload do arquivo Excel para carregar a análise de remessa.
               </div>
             )}
           </div>
