@@ -166,7 +166,7 @@ export default function App() {
     return { centrosAtivos, qtdTotalUnidades };
   }, [dadosFiltrados]);
 
-  // EVOLUÇÃO TEMPORAL (ESTILO LAURENCE)
+  // EVOLUÇÃO TEMPORAL (LAURENCE)
   const datasEvolucaoUnicas = useMemo(() => {
     const setDatas = new Set();
     dadosFiltrados.forEach(d => {
@@ -206,7 +206,7 @@ export default function App() {
     });
   }, [dadosFiltrados]);
 
-  // REMESSAS + MOTIVOS
+  // REMESSAS (KPIS DE RISCO)
   const remessaDataReal = useMemo(() => {
     let atrasada = 0, noPrazo = 0, semData = 0;
     dadosFiltrados.forEach(d => {
@@ -223,13 +223,9 @@ export default function App() {
     return ((remessaDataReal.atrasada / total) * 100).toFixed(1).replace('.', ',');
   }, [dadosFiltrados, remessaDataReal]);
 
-  const motivosPendenciaEDataData = useMemo(() => {
-    const contagem = {
-      'REMESSA VENCIDA': remessaDataReal.atrasada,
-      'REMESSA NO PRAZO': remessaDataReal.noPrazo,
-      'SEM DATA REMESSA': remessaDataReal.semData,
-    };
-    
+  // ANÁLISE EXCLUSIVA DA COLUNA 'OBS'
+  const motivosOBSData = useMemo(() => {
+    const contagem = {};
     dadosFiltrados.forEach(d => {
       const obs = normalizarObs(d.obs);
       if (!obs) return;
@@ -238,11 +234,10 @@ export default function App() {
 
     return Object.entries(contagem)
       .map(([motivo, qtd]) => ({ motivo, qtd }))
-      .sort((a, b) => b.qtd - a.qtd)
-      .slice(0, 10);
-  }, [dadosFiltrados, remessaDataReal]);
+      .sort((a, b) => b.qtd - a.qtd);
+  }, [dadosFiltrados]);
 
-  // STATUS TRATATIVA
+  // STATUS TRATATIVA (KPI)
   const tratativaStatusData = useMemo(() => {
     const comTratativa = dadosFiltrados.filter(d => d.tratativa && String(d.tratativa).trim() !== '').length;
     const semTratativa = dadosFiltrados.length - comTratativa;
@@ -484,7 +479,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* AGING E PRINCIPAIS MOTIVOS */}
+      {/* AGING E PRINCIPAIS MOTIVOS (APENAS COLUNA OBS) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
           <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">DISTRIBUIÇÃO POR FAIXA DE AGING</h2>
@@ -504,14 +499,14 @@ export default function App() {
         </div>
 
         <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
-          <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">PRINCIPAIS MOTIVOS DE PENDÊNCIA (OBS + PRAZO REMESSA)</h2>
-          <p className="text-[11px] text-slate-400 mb-4">Ocorrências por motivo de pendência e status do prazo de remessa</p>
+          <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">PRINCIPAIS MOTIVOS DE PENDÊNCIA (OBS)</h2>
+          <p className="text-[11px] text-slate-400 mb-4">Ocorrências registadas exclusivamente na coluna OBS</p>
           <div className="h-60">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={motivosPendenciaEDataData} layout="vertical" margin={{ left: 10, right: 20 }}>
+              <BarChart data={motivosOBSData} layout="vertical" margin={{ left: 10, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" horizontal={false} />
                 <XAxis type="number" stroke="#64748B" fontSize={10} allowDecimals={false} />
-                <YAxis type="category" dataKey="motivo" stroke="#64748B" fontSize={9} width={150} />
+                <YAxis type="category" dataKey="motivo" stroke="#64748B" fontSize={9} width={140} />
                 <Tooltip contentStyle={{ backgroundColor: '#171E2E', borderColor: '#334155', borderRadius: '8px' }} />
                 <Bar dataKey="qtd" fill="#00E599" radius={[0, 3, 3, 0]} name="Ocorrências" />
               </BarChart>
@@ -605,26 +600,26 @@ export default function App() {
         {/* GRÁFICO DE BARRAS: STATUS DE TRATATIVA */}
         <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
           <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">DISTRIBUIÇÃO DOS STATUS DE TRATATIVA</h2>
-          <p className="text-[11px] text-slate-400 mb-4">Volume total de itens por status de acompanhamento/tratativa registrada</p>
+          <p className="text-[11px] text-slate-400 mb-4">Volume total de itens por status de acompanhamento</p>
           <div className="h-64">
             {tratativaPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={tratativaPieData} margin={{ top: 15, right: 30, left: 0, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
-                  <XAxis dataKey="name" stroke="#64748B" fontSize={10} interval={0} angle={-15} textAnchor="end" />
-                  <YAxis stroke="#64748B" fontSize={10} allowDecimals={false} />
+                <BarChart data={tratativaPieData} layout="vertical" margin={{ left: 10, right: 30, top: 10, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" horizontal={false} />
+                  <XAxis type="number" stroke="#64748B" fontSize={10} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" stroke="#64748B" fontSize={9} width={130} />
                   <Tooltip
                     contentStyle={{ backgroundColor: '#171E2E', borderColor: '#334155', borderRadius: '8px' }}
                     formatter={(value, name, props) => [`${value} itens (${props.payload.perc}%)`, 'Volume']}
                   />
-                  <Bar dataKey="value" fill="#00E599" radius={[4, 4, 0, 0]} name="Itens">
-                    <LabelList dataKey="perc" position="top" formatter={(v) => `${v}%`} fill="#94A3B8" fontSize={10} />
+                  <Bar dataKey="value" fill="#00E599" radius={[0, 4, 4, 0]} name="Itens">
+                    <LabelList dataKey="perc" position="right" formatter={(v) => `${v}%`} fill="#94A3B8" fontSize={10} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="h-full flex items-center justify-center text-xs text-slate-500">
-                Faça o upload do arquivo Excel para carregar a distribuição.
+                Faça o upload do arquivo Excel para carregar os dados.
               </div>
             )}
           </div>
