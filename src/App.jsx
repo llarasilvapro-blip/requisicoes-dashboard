@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, LabelList, ComposedChart, Line
+  BarChart, Bar, LabelList, PieChart, Pie, Cell, Legend
 } from 'recharts';
 
 // ------------------------------------------------------------------
@@ -44,6 +44,8 @@ const parseData = (str) => {
 
 const HOJE = new Date('2026-09-29');
 
+const CORES_TRATATIVA = ['#F59E0B', '#00E599', '#3B82F6', '#EC4899', '#8B5CF6', '#14B8A6'];
+
 export default function App() {
   const [baseDados, setBaseDados] = useState([]);
   const [filtroCentro, setFiltroCentro] = useState('Todos');
@@ -52,7 +54,7 @@ export default function App() {
   const [filtroAging, setFiltroAging] = useState('Todos');
   const [nomeArquivo, setNomeArquivo] = useState('Faça o upload do arquivo Excel para carregar o dashboard.');
 
-  // PARSER DO UPLOAD EXCEL (LEITURA DINÂMICA COMPLETA DE TODAS AS LINHAS VÁLIDAS)
+  // UPLOAD DO ARQUIVO EXCEL
   const handleFileChange = (event) => {
     const file = event.target.files && event.target.files[0];
     if (file) {
@@ -68,7 +70,6 @@ export default function App() {
           const jsonDados = XLSX.utils.sheet_to_json(worksheet, { raw: false });
 
           if (jsonDados && jsonDados.length > 0) {
-            // Filtrar linhas de resumo do rodapé da planilha que não possuem 'Requisição de compra'
             const linhasValidas = jsonDados.filter(row => row['Requisição de compra'] && !isNaN(Number(row['Requisição de compra'])));
 
             const dadosFormatados = linhasValidas.map((row, idx) => {
@@ -114,7 +115,7 @@ export default function App() {
     }
   };
 
-  // OPÇÕES DOS FILTROS
+  // FILTROS
   const opcoesFiltros = useMemo(() => {
     const getUnicos = (key) => {
       const vals = baseDados.map(item => item[key]).filter(Boolean);
@@ -128,7 +129,6 @@ export default function App() {
     };
   }, [baseDados]);
 
-  // FILTRAGEM
   const dadosFiltrados = useMemo(() => {
     return baseDados.filter(item => {
       const matchCentro = filtroCentro === 'Todos' || item.centro === filtroCentro;
@@ -139,7 +139,7 @@ export default function App() {
     });
   }, [baseDados, filtroCentro, filtroComprador, filtroGC, filtroAging]);
 
-  // -------------------- KPIS PRINCIPAIS (ORIGINAIS) --------------------
+  // KPIS
   const totalRCsUnicas = useMemo(() => new Set(dadosFiltrados.map(d => d.rc)).size, [dadosFiltrados]);
 
   const leadTimeMedio = useMemo(() => {
@@ -167,7 +167,7 @@ export default function App() {
     return { centrosAtivos, qtdTotalUnidades };
   }, [dadosFiltrados]);
 
-  // -------------------- 1. ALTERAÇÃO: EVOLUÇÃO TEMPORAL (ESTILO LAURENCE) --------------------
+  // 1. EVOLUÇÃO TEMPORAL (ESTILO LAURENCE)
   const datasEvolucaoUnicas = useMemo(() => {
     const setDatas = new Set();
     dadosFiltrados.forEach(d => {
@@ -194,7 +194,7 @@ export default function App() {
       .slice(0, 12);
   }, [dadosFiltrados]);
 
-  // -------------------- DISTRIBUIÇÃO POR FAIXA DE AGING (ORIGINAL) --------------------
+  // FAIXAS DE AGING
   const agingBarDataDinamico = useMemo(() => {
     const faixas = ['0 - 15 dias', '16 - 30 dias', '31 - 60 dias', 'Acima de 60 dias'];
     return faixas.map(faixa => {
@@ -207,7 +207,7 @@ export default function App() {
     });
   }, [dadosFiltrados]);
 
-  // -------------------- 2. ALTERAÇÃO: MOTIVOS + PRAZO DE REMESSA (INCORPORADO) --------------------
+  // MOTIVOS DE PENDÊNCIA
   const remessaDataReal = useMemo(() => {
     let atrasada = 0, noPrazo = 0, semData = 0;
     dadosFiltrados.forEach(d => {
@@ -243,24 +243,23 @@ export default function App() {
       .slice(0, 10);
   }, [dadosFiltrados, remessaDataReal]);
 
-  // -------------------- STATUS DA TRATATIVA (ORIGINAL) --------------------
-  const tratativaStatusData = useMemo(() => {
-    const comTratativa = dadosFiltrados.filter(d => d.tratativa && String(d.tratativa).trim() !== '').length;
-    const semTratativa = dadosFiltrados.length - comTratativa;
-    return [
-      { name: 'Sem tratativa registrada', value: semTratativa, color: '#F59E0B' },
-      { name: 'Com tratativa definida', value: comTratativa, color: '#00E599' },
-    ];
+  // NOVO GRÁFICO: DISTRIBUIÇÃO DAS TRATATIVAS
+  const distribuicaoTratativasData = useMemo(() => {
+    const contagem = {};
+    dadosFiltrados.forEach(d => {
+      const t = d.tratativa && String(d.tratativa).trim() !== '' ? String(d.tratativa).trim() : 'Sem Tratativa Registrada';
+      contagem[t] = (contagem[t] || 0) + 1;
+    });
+
+    const total = dadosFiltrados.length || 1;
+    return Object.entries(contagem).map(([name, value]) => ({
+      name,
+      value,
+      perc: ((value / total) * 100).toFixed(1).replace('.', ',')
+    })).sort((a, b) => b.value - a.value);
   }, [dadosFiltrados]);
 
-  const percSemTratativa = useMemo(() => {
-    const total = dadosFiltrados.length;
-    if (!total) return '0,0';
-    const sem = tratativaStatusData.find(t => t.name.startsWith('Sem'))?.value || 0;
-    return ((sem / total) * 100).toFixed(1).replace('.', ',');
-  }, [dadosFiltrados, tratativaStatusData]);
-
-  // -------------------- CONCENTRAÇÃO POR GRUPO DE COMPRAS (ORIGINAL) --------------------
+  // CONCENTRAÇÃO GC
   const concentracaoGCData = useMemo(() => {
     const contagem = {};
     dadosFiltrados.forEach(d => {
@@ -272,7 +271,7 @@ export default function App() {
       .sort((a, b) => b.qtd - a.qtd);
   }, [dadosFiltrados]);
 
-  // -------------------- RANKING DE COMPRADORES (ORIGINAL) --------------------
+  // RANKINGS
   const rankingCompradores = useMemo(() => {
     const grupos = {};
     dadosFiltrados.forEach(d => {
@@ -296,7 +295,6 @@ export default function App() {
       .sort((a, b) => b.itens - a.itens);
   }, [dadosFiltrados]);
 
-  // -------------------- TOP CENTROS COM MAIS ITENS PENDENTES (ORIGINAL) --------------------
   const rankingCentros = useMemo(() => {
     const grupos = {};
     dadosFiltrados.forEach(d => {
@@ -317,59 +315,6 @@ export default function App() {
       }))
       .sort((a, b) => b.itens - a.itens)
       .slice(0, 8);
-  }, [dadosFiltrados]);
-
-  // -------------------- 3. ALTERAÇÃO: EVOLUÇÃO DAS TRATATIVAS (GEROU PEDIDO VS NÃO GEROU) --------------------
-  const evolucaoTratativasData = useMemo(() => {
-    const agrupadoPorData = {};
-
-    dadosFiltrados.forEach(d => {
-      const dt = parseData(d.dataSolicitacao) || parseData(d.dataTratativa);
-      if (!dt) return;
-      
-      const dataKey = dt.toLocaleDateString('pt-BR');
-      if (!agrupadoPorData[dataKey]) {
-        agrupadoPorData[dataKey] = { data: dataKey, totalRCs: new Set(), geraramPedido: 0, naoGeraramPedido: 0 };
-      }
-
-      agrupadoPorData[dataKey].totalRCs.add(d.rc);
-
-      const tratativaUpper = String(d.tratativa || '').toUpperCase();
-      const obsUpper = String(d.obs || '').toUpperCase();
-      
-      const gerou = tratativaUpper.includes('PEDIDO') || 
-                    tratativaUpper.includes('GERAR') || 
-                    obsUpper.includes('PEDIDO') || 
-                    tratativaUpper.includes('CSC DEVE CRIAR PEDIDO');
-
-      if (gerou) {
-        agrupadoPorData[dataKey].geraramPedido += 1;
-      } else {
-        agrupadoPorData[dataKey].naoGeraramPedido += 1;
-      }
-    });
-
-    return Object.values(agrupadoPorData).map(item => ({
-      ...item,
-      qtdRCs: item.totalRCs.size,
-    })).sort((a, b) => a.data.localeCompare(b.data));
-  }, [dadosFiltrados]);
-
-  const resumoTratativas = useMemo(() => {
-    let geraram = 0;
-    let naoGeraram = 0;
-    dadosFiltrados.forEach(d => {
-      const tratativaUpper = String(d.tratativa || '').toUpperCase();
-      const obsUpper = String(d.obs || '').toUpperCase();
-      if (tratativaUpper.includes('PEDIDO') || tratativaUpper.includes('GERAR') || obsUpper.includes('PEDIDO') || tratativaUpper.includes('CSC DEVE CRIAR PEDIDO')) {
-        geraram += 1;
-      } else {
-        naoGeraram += 1;
-      }
-    });
-    const total = dadosFiltrados.length || 1;
-    const perc = ((geraram / total) * 100).toFixed(1).replace('.', ',');
-    return { geraram, naoGeraram, total, perc };
   }, [dadosFiltrados]);
 
   return (
@@ -463,25 +408,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* KPIS DE RISCO */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <div className="bg-[#111726] p-4 rounded-xl border border-red-500/30">
-          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">REMESSA JÁ VENCIDA (vs. hoje)</p>
-          <h3 className="text-2xl font-black text-red-400 mt-1">{percRemessaVencida}%</h3>
-          <p className="text-xs text-slate-400 mt-1">
-            {remessaDataReal.atrasada} itens com data de remessa anterior a {HOJE.toLocaleDateString('pt-BR')}
-          </p>
-        </div>
-        <div className="bg-[#111726] p-4 rounded-xl border border-amber-500/30">
-          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">SEM TRATATIVA REGISTRADA</p>
-          <h3 className="text-2xl font-black text-amber-400 mt-1">{percSemTratativa}%</h3>
-          <p className="text-xs text-slate-400 mt-1">
-            {tratativaStatusData.find(t => t.name.startsWith('Sem'))?.value || 0} itens aguardando ação/comentário do comprador
-          </p>
-        </div>
-      </div>
-
-      {/* 1. QUADRANTE EVOLUÇÃO TEMPORAL (NOVO - LAURENCE) */}
+      {/* EVOLUÇÃO TEMPORAL (LAURENCE) */}
       <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80 mb-6">
         <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">Qtde_Requisições por Gestão_Compras e Date</h2>
         <p className="text-[11px] text-slate-400 mb-4">Volume de requisições por grupo de compras comparado por data</p>
@@ -508,13 +435,13 @@ export default function App() {
             </ResponsiveContainer>
           ) : (
             <div className="h-full flex items-center justify-center text-xs text-slate-500">
-              Carregue a planilha via botão "Atualizar base (.xlsx)" para visualizar os dados.
+              Carregue a planilha para visualizar os dados.
             </div>
           )}
         </div>
       </div>
 
-      {/* AGING E PRINCIPAIS MOTIVOS (SEÇÃO INTACTA + PENDÊNCIAS DE REMESSA INCLUÍDAS) */}
+      {/* AGING E PRINCIPAIS MOTIVOS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
           <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">DISTRIBUIÇÃO POR FAIXA DE AGING</h2>
@@ -550,7 +477,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* CONCENTRAÇÃO POR GRUPO DE COMPRAS (INTACTO) */}
+      {/* CONCENTRAÇÃO POR GRUPO DE COMPRAS */}
       <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80 mb-6">
         <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">CONCENTRAÇÃO POR GRUPO DE COMPRAS (GC)</h2>
         <p className="text-[11px] text-slate-400 mb-4">Participação de cada grupo de compras no volume total de itens</p>
@@ -572,7 +499,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* RANKING DE COMPRADORES E CENTROS (INTACTOS) */}
+      {/* RANKING DE COMPRADORES E CENTROS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
           <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">RANKING DE COMPRADORES</h2>
@@ -601,7 +528,7 @@ export default function App() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="5" className="py-4 text-center text-slate-500">Faça o upload do arquivo Excel para carregar a lista</td>
+                    <td colSpan="5" className="py-4 text-center text-slate-500">Nenhum dado carregado</td>
                   </tr>
                 )}
               </tbody>
@@ -629,45 +556,32 @@ export default function App() {
         </div>
       </div>
 
-      {/* 3. QUADRANTE EVOLUÇÃO DAS TRATATIVAS (REFORMULADO) */}
+      {/* NOVO QUADRANTE: DISTRIBUIÇÃO DAS TRATATIVAS (SUBSTITUTO DE EVOLUÇÃO DAS TRATATIVAS) */}
       <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80 mb-6">
-        <div className="flex flex-col md:flex-row justify-between md:items-end gap-2 mb-4">
-          <div>
-            <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">EVOLUÇÃO DAS TRATATIVAS</h2>
-            <p className="text-[11px] text-slate-400">N° de RCs por dia e quantidade de itens que geraram vs. não geraram pedido</p>
-          </div>
-          <p className="text-xs text-slate-300">
-            <span className="text-[#00E599] font-bold">{resumoTratativas.geraram}</span> geraram pedido
-            <span className="text-slate-500"> ({resumoTratativas.perc}%)</span>
-          </p>
-        </div>
-
-        {evolucaoTratativasData.length > 0 ? (
-          <div className="h-64">
+        <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">DISTRIBUIÇÃO DOS STATUS DE TRATATIVA</h2>
+        <p className="text-[11px] text-slate-400 mb-4">Volume total de itens por status de acompanhamento/tratativa registada</p>
+        <div className="h-64">
+          {distribuicaoTratativasData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={evolucaoTratativasData}>
+              <BarChart data={distribuicaoTratativasData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
-                <XAxis dataKey="data" stroke="#64748B" fontSize={10} />
-                <YAxis yAxisId="left" stroke="#64748B" fontSize={10} allowDecimals={false} />
-                <YAxis yAxisId="right" orientation="right" stroke="#64748B" fontSize={10} allowDecimals={false} />
+                <XAxis dataKey="name" stroke="#64748B" fontSize={10} />
+                <YAxis stroke="#64748B" fontSize={10} allowDecimals={false} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#171E2E', borderColor: '#334155', borderRadius: '8px' }}
+                  formatter={(value, name, props) => [`${value} itens (${props.payload.perc}%)`, 'Volume']}
                 />
-                <Bar yAxisId="left" dataKey="geraramPedido" fill="#00E599" radius={[3, 3, 0, 0]} name="Geraram Pedido" />
-                <Bar yAxisId="left" dataKey="naoGeraramPedido" fill="#EF4444" radius={[3, 3, 0, 0]} name="Não Geraram Pedido" />
-                <Line yAxisId="right" type="monotone" dataKey="qtdRCs" stroke="#F59E0B" strokeWidth={2} dot={{ r: 3, fill: '#F59E0B' }} name="N° de RCs" />
-              </ComposedChart>
+                <Bar dataKey="value" fill="#00E599" radius={[3, 3, 0, 0]} name="Itens">
+                  <LabelList dataKey="perc" position="top" formatter={(v) => `${v}%`} fill="#94A3B8" fontSize={10} />
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
-          </div>
-        ) : (
-          <div className="h-32 flex items-center justify-center text-xs text-slate-500">
-            Nenhum item carregado para exibição do gráfico de tratativa.
-          </div>
-        )}
-
-        <p className="text-[10px] text-slate-500 mt-3">
-          Barras verdes: itens que geraram pedido. Barras vermelhas: itens que não geraram pedido. Linha amarela: N° de RCs únicas registradas na data.
-        </p>
+          ) : (
+            <div className="h-full flex items-center justify-center text-xs text-slate-500">
+              Faça o upload do ficheiro Excel para carregar a distribuição.
+            </div>
+          )}
+        </div>
       </div>
 
     </div>
