@@ -42,18 +42,15 @@ const parseData = (str) => {
   return isNaN(d.getTime()) ? null : d;
 };
 
-const HOJE = new Date('2026-09-16');
-
-const formatarData = (str) => {
-  const d = parseData(str);
-  if (!d) return '—';
-  return d.toLocaleDateString('pt-BR');
-};
+const HOJE = new Date('2026-09-29');
 
 // ------------------------------------------------------------------
-// BASE REAL PRÉ-CARREGADA
+// BASE REAL PRÉ-CARREGADA (EXEMPLO INICIAL)
 // ------------------------------------------------------------------
-const dadosReais = [{"id": 1042499410, "rc": "10424994", "itemRc": 10, "diasRC": 85, "centro": "Industria - Garanhuns", "comprador": "Rubens Almeida", "grupoCompras": "I07", "faixaAging": "Acima de 60 dias", "qtdSolicitada": 1, "unidadeMedida": "UN", "material": "1094883", "textoBreve": "TAMPAO 125MM PVC PT002242 PROMAQUINA", "dataSolicitacao": "2026-06-09", "modificadoEm": "2026-08-31", "remessa": "2026-08-31", "tratativa": null, "dataTratativa": null, "obs": null}, {"id": 1042499420, "rc": "10424994", "itemRc": 20, "diasRC": 85, "centro": "Industria - Garanhuns", "comprador": "Rubens Almeida", "grupoCompras": "I07", "faixaAging": "Acima de 60 dias", "qtdSolicitada": 2, "unidadeMedida": "UN", "material": "1079138", "textoBreve": "Protecao Promaquina Pn Pp003640", "dataSolicitacao": "2026-06-09", "modificadoEm": "2026-08-31", "remessa": "2026-08-31", "tratativa": null, "dataTratativa": null, "obs": null}];
+const dadosReais = [
+  {"id": 1043372610, "rc": "10433726", "itemRc": 10, "diasRC": 89, "centro": "Indústria - Sete Lagoas", "comprador": "Rubens Almeida", "grupoCompras": "I07", "faixaAging": "Acima de 60 dias", "qtdSolicitada": 4, "unidadeMedida": "PÇ", "material": "1089193", "textoBreve": "CALCA ALGODAO CNZ 38 FX REFL", "dataSolicitacao": "2026-07-01", "modificadoEm": "2026-09-01", "remessa": "2026-08-31", "tratativa": "Corporate Services", "dataTratativa": null, "obs": "Corporate Services"},
+  {"id": 1043372620, "rc": "10433726", "itemRc": 20, "diasRC": 89, "centro": "Indústria - Sete Lagoas", "comprador": "Rubens Almeida", "grupoCompras": "I07", "faixaAging": "Acima de 60 dias", "qtdSolicitada": 6, "unidadeMedida": "PÇ", "material": "1089274", "textoBreve": "CALCA ALGODAO CNZ 42 FX REFL", "dataSolicitacao": "2026-07-01", "modificadoEm": "2026-08-19", "remessa": "2026-08-31", "tratativa": "Corporate Services", "dataTratativa": null, "obs": "Corporate Services"}
+];
 
 export default function App() {
   const [baseDados, setBaseDados] = useState(dadosReais);
@@ -61,7 +58,7 @@ export default function App() {
   const [filtroComprador, setFiltroComprador] = useState('Todos');
   const [filtroGC, setFiltroGC] = useState('Todos');
   const [filtroAging, setFiltroAging] = useState('Todos');
-  const [nomeArquivo, setNomeArquivo] = useState('Base real (Requisições_procurement.xlsx · 390 itens)');
+  const [nomeArquivo, setNomeArquivo] = useState('Base carregada (Requisições procurement 28.09.xlsx)');
 
   const handleFileChange = (event) => {
     const file = event.target.files && event.target.files[0];
@@ -186,11 +183,20 @@ export default function App() {
     });
   }, [dadosFiltrados]);
 
-  // -------------------- EVOLUÇÃO TEMPORAL (BI DO LAURENCE) --------------------
+  // -------------------- EVOLUÇÃO TEMPORAL (VISUAL LAURENCE) --------------------
+  const datasEvolucaoUnicas = useMemo(() => {
+    const setDatas = new Set();
+    dadosFiltrados.forEach(d => {
+      const dt = parseData(d.dataSolicitacao);
+      if (dt) setDatas.add(dt.toLocaleDateString('pt-BR'));
+    });
+    return Array.from(setDatas).sort().slice(-3); // Compara as 3 datas mais recentes
+  }, [dadosFiltrados]);
+
   const evolucaoDataLaurence = useMemo(() => {
     const mapa = {};
     dadosFiltrados.forEach(d => {
-      const gc = d.grupoCompras || 'Outros';
+      const gc = d.grupoCompras || 'Não informado';
       const dt = parseData(d.dataSolicitacao);
       const dataStr = dt ? dt.toLocaleDateString('pt-BR') : 'Sem Data';
 
@@ -204,16 +210,7 @@ export default function App() {
       .slice(0, 10);
   }, [dadosFiltrados]);
 
-  const datasEvolucaoUnicas = useMemo(() => {
-    const setDatas = new Set();
-    dadosFiltrados.forEach(d => {
-      const dt = parseData(d.dataSolicitacao);
-      if (dt) setDatas.add(dt.toLocaleDateString('pt-BR'));
-    });
-    return Array.from(setDatas).sort().slice(-3); // Pega as 3 datas mais recentes para comparar no gráfico
-  }, [dadosFiltrados]);
-
-  // -------------------- CUMPRIMENTO DE REMESSA + MOTIVOS DE PENDÊNCIA (UNIFICADOS) --------------------
+  // -------------------- MOTIVOS DE PENDÊNCIA + STATUS DE REMESSA (UNIFICADOS) --------------------
   const remessaDataReal = useMemo(() => {
     let atrasada = 0, noPrazo = 0, semData = 0;
     dadosFiltrados.forEach(d => {
@@ -249,7 +246,7 @@ export default function App() {
       .slice(0, 10);
   }, [dadosFiltrados, remessaDataReal]);
 
-  // -------------------- STATUS DE TRATATIVA --------------------
+  // -------------------- STATUS DA TRATATIVA --------------------
   const tratativaStatusData = useMemo(() => {
     const comTratativa = dadosFiltrados.filter(d => d.tratativa && String(d.tratativa).trim() !== '').length;
     const semTratativa = dadosFiltrados.length - comTratativa;
@@ -342,7 +339,11 @@ export default function App() {
 
       const tratativaUpper = String(d.tratativa || '').toUpperCase();
       const obsUpper = String(d.obs || '').toUpperCase();
-      const gerou = tratativaUpper.includes('PEDIDO') || tratativaUpper.includes('GERAR') || obsUpper.includes('PEDIDO');
+      
+      const gerou = tratativaUpper.includes('PEDIDO') || 
+                    tratativaUpper.includes('GERAR') || 
+                    obsUpper.includes('PEDIDO') || 
+                    tratativaUpper.includes('CSC DEVE CRIAR PEDIDO');
 
       if (gerou) {
         agrupadoPorData[dataKey].geraramPedido += 1;
@@ -363,7 +364,7 @@ export default function App() {
     dadosFiltrados.forEach(d => {
       const tratativaUpper = String(d.tratativa || '').toUpperCase();
       const obsUpper = String(d.obs || '').toUpperCase();
-      if (tratativaUpper.includes('PEDIDO') || tratativaUpper.includes('GERAR') || obsUpper.includes('PEDIDO')) {
+      if (tratativaUpper.includes('PEDIDO') || tratativaUpper.includes('GERAR') || obsUpper.includes('PEDIDO') || tratativaUpper.includes('CSC DEVE CRIAR PEDIDO')) {
         geraram += 1;
       } else {
         naoGeraram += 1;
@@ -471,7 +472,7 @@ export default function App() {
           <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">REMESSA JÁ VENCIDA (vs. hoje)</p>
           <h3 className="text-2xl font-black text-red-400 mt-1">{percRemessaVencida}%</h3>
           <p className="text-xs text-slate-400 mt-1">
-            {remessaDataReal.atrasada} itens com data de remessa anterior a 16/09/2026
+            {remessaDataReal.atrasada} itens com data de remessa anterior a {HOJE.toLocaleDateString('pt-BR')}
           </p>
         </div>
         <div className="bg-[#111726] p-4 rounded-xl border border-amber-500/30">
@@ -483,7 +484,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* EVOLUÇÃO TEMPORAL (QUADRANTE LAURENCE) */}
+      {/* EVOLUÇÃO TEMPORAL (LAURENCE) */}
       <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80 mb-6">
         <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">Qtde_Requisições por Gestão_Compras e Date</h2>
         <p className="text-[11px] text-slate-400 mb-4">Volume de requisições por grupo de compras comparado por data</p>
@@ -510,7 +511,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* AGING E PRINCIPAIS MOTIVOS (COM INFORMAÇÃO DE REMESSA INCLUÍDA) */}
+      {/* AGING E PRINCIPAIS MOTIVOS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
           <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">DISTRIBUIÇÃO POR FAIXA DE AGING</h2>
@@ -619,7 +620,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* EVOLUÇÃO DAS TRATATIVAS (REFORMULADO) */}
+      {/* EVOLUÇÃO DAS TRATATIVAS */}
       <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80 mb-6">
         <div className="flex flex-col md:flex-row justify-between md:items-end gap-2 mb-4">
           <div>
