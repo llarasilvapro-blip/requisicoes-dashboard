@@ -27,39 +27,32 @@ const calcularFaixaAging = (dias) => {
 
 const normalizarGC = (gc) => {
   const s = String(gc || '').trim();
-  if (!s || s === '-') return 'Não informado';
+  if (!s || s === '-' || s === 'nan' || s === 'null') return 'Não informado';
   return s;
 };
 
 const normalizarObs = (obs) => {
-  if (!obs) return null;
+  if (!obs || obs === 'nan' || obs === 'null') return null;
   return String(obs).trim().replace(/\s+/g, ' ').toUpperCase();
 };
 
 const parseData = (str) => {
-  if (!str) return null;
+  if (!str || str === 'nan' || str === 'null') return null;
   const d = new Date(str);
   return isNaN(d.getTime()) ? null : d;
 };
 
 const HOJE = new Date('2026-09-29');
 
-// ------------------------------------------------------------------
-// BASE REAL PRÉ-CARREGADA (EXEMPLO INICIAL)
-// ------------------------------------------------------------------
-const dadosReais = [
-  {"id": 1043372610, "rc": "10433726", "itemRc": 10, "diasRC": 89, "centro": "Indústria - Sete Lagoas", "comprador": "Rubens Almeida", "grupoCompras": "I07", "faixaAging": "Acima de 60 dias", "qtdSolicitada": 4, "unidadeMedida": "PÇ", "material": "1089193", "textoBreve": "CALCA ALGODAO CNZ 38 FX REFL", "dataSolicitacao": "2026-07-01", "modificadoEm": "2026-09-01", "remessa": "2026-08-31", "tratativa": "Corporate Services", "dataTratativa": null, "obs": "Corporate Services"},
-  {"id": 1043372620, "rc": "10433726", "itemRc": 20, "diasRC": 89, "centro": "Indústria - Sete Lagoas", "comprador": "Rubens Almeida", "grupoCompras": "I07", "faixaAging": "Acima de 60 dias", "qtdSolicitada": 6, "unidadeMedida": "PÇ", "material": "1089274", "textoBreve": "CALCA ALGODAO CNZ 42 FX REFL", "dataSolicitacao": "2026-07-01", "modificadoEm": "2026-08-19", "remessa": "2026-08-31", "tratativa": "Corporate Services", "dataTratativa": null, "obs": "Corporate Services"}
-];
-
 export default function App() {
-  const [baseDados, setBaseDados] = useState(dadosReais);
+  const [baseDados, setBaseDados] = useState([]);
   const [filtroCentro, setFiltroCentro] = useState('Todos');
   const [filtroComprador, setFiltroComprador] = useState('Todos');
   const [filtroGC, setFiltroGC] = useState('Todos');
   const [filtroAging, setFiltroAging] = useState('Todos');
-  const [nomeArquivo, setNomeArquivo] = useState('Base carregada (Requisições procurement 28.09.xlsx)');
+  const [nomeArquivo, setNomeArquivo] = useState('Faça o upload do arquivo Excel para carregar o dashboard.');
 
+  // PARSER DO UPLOAD EXCEL (LEITURA DINÂMICA COMPLETA DE TODAS AS LINHAS VÁLIDAS)
   const handleFileChange = (event) => {
     const file = event.target.files && event.target.files[0];
     if (file) {
@@ -75,7 +68,10 @@ export default function App() {
           const jsonDados = XLSX.utils.sheet_to_json(worksheet, { raw: false });
 
           if (jsonDados && jsonDados.length > 0) {
-            const dadosFormatados = jsonDados.map((row, idx) => {
+            // Filtrar linhas de resumo do rodapé da planilha que não possuem 'Requisição de compra'
+            const linhasValidas = jsonDados.filter(row => row['Requisição de compra'] && !isNaN(Number(row['Requisição de compra'])));
+
+            const dadosFormatados = linhasValidas.map((row, idx) => {
               const dias = Number(row['Dias RC']) || 0;
               return {
                 id: row['Concat'] || row['Requisição de compra'] || idx + 1,
@@ -143,7 +139,7 @@ export default function App() {
     });
   }, [baseDados, filtroCentro, filtroComprador, filtroGC, filtroAging]);
 
-  // -------------------- KPIS PRINCIPAIS --------------------
+  // -------------------- KPIS PRINCIPAIS (ORIGINAIS) --------------------
   const totalRCsUnicas = useMemo(() => new Set(dadosFiltrados.map(d => d.rc)).size, [dadosFiltrados]);
 
   const leadTimeMedio = useMemo(() => {
@@ -171,26 +167,14 @@ export default function App() {
     return { centrosAtivos, qtdTotalUnidades };
   }, [dadosFiltrados]);
 
-  const agingBarDataDinamico = useMemo(() => {
-    const faixas = ['0 - 15 dias', '16 - 30 dias', '31 - 60 dias', 'Acima de 60 dias'];
-    return faixas.map(faixa => {
-      const itensNaFaixa = dadosFiltrados.filter(d => d.faixaAging === faixa);
-      return {
-        faixa,
-        itens: itensNaFaixa.length,
-        rcs: new Set(itensNaFaixa.map(d => d.rc)).size,
-      };
-    });
-  }, [dadosFiltrados]);
-
-  // -------------------- EVOLUÇÃO TEMPORAL (VISUAL LAURENCE) --------------------
+  // -------------------- 1. ALTERAÇÃO: EVOLUÇÃO TEMPORAL (ESTILO LAURENCE) --------------------
   const datasEvolucaoUnicas = useMemo(() => {
     const setDatas = new Set();
     dadosFiltrados.forEach(d => {
       const dt = parseData(d.dataSolicitacao);
       if (dt) setDatas.add(dt.toLocaleDateString('pt-BR'));
     });
-    return Array.from(setDatas).sort().slice(-3); // Compara as 3 datas mais recentes
+    return Array.from(setDatas).sort().slice(-3);
   }, [dadosFiltrados]);
 
   const evolucaoDataLaurence = useMemo(() => {
@@ -207,10 +191,23 @@ export default function App() {
 
     return Object.values(mapa)
       .sort((a, b) => b.total - a.total)
-      .slice(0, 10);
+      .slice(0, 12);
   }, [dadosFiltrados]);
 
-  // -------------------- MOTIVOS DE PENDÊNCIA + STATUS DE REMESSA (UNIFICADOS) --------------------
+  // -------------------- DISTRIBUIÇÃO POR FAIXA DE AGING (ORIGINAL) --------------------
+  const agingBarDataDinamico = useMemo(() => {
+    const faixas = ['0 - 15 dias', '16 - 30 dias', '31 - 60 dias', 'Acima de 60 dias'];
+    return faixas.map(faixa => {
+      const itensNaFaixa = dadosFiltrados.filter(d => d.faixaAging === faixa);
+      return {
+        faixa,
+        itens: itensNaFaixa.length,
+        rcs: new Set(itensNaFaixa.map(d => d.rc)).size,
+      };
+    });
+  }, [dadosFiltrados]);
+
+  // -------------------- 2. ALTERAÇÃO: MOTIVOS + PRAZO DE REMESSA (INCORPORADO) --------------------
   const remessaDataReal = useMemo(() => {
     let atrasada = 0, noPrazo = 0, semData = 0;
     dadosFiltrados.forEach(d => {
@@ -246,7 +243,7 @@ export default function App() {
       .slice(0, 10);
   }, [dadosFiltrados, remessaDataReal]);
 
-  // -------------------- STATUS DA TRATATIVA --------------------
+  // -------------------- STATUS DA TRATATIVA (ORIGINAL) --------------------
   const tratativaStatusData = useMemo(() => {
     const comTratativa = dadosFiltrados.filter(d => d.tratativa && String(d.tratativa).trim() !== '').length;
     const semTratativa = dadosFiltrados.length - comTratativa;
@@ -263,7 +260,7 @@ export default function App() {
     return ((sem / total) * 100).toFixed(1).replace('.', ',');
   }, [dadosFiltrados, tratativaStatusData]);
 
-  // -------------------- CONCENTRAÇÃO POR GRUPO DE COMPRAS --------------------
+  // -------------------- CONCENTRAÇÃO POR GRUPO DE COMPRAS (ORIGINAL) --------------------
   const concentracaoGCData = useMemo(() => {
     const contagem = {};
     dadosFiltrados.forEach(d => {
@@ -275,7 +272,7 @@ export default function App() {
       .sort((a, b) => b.qtd - a.qtd);
   }, [dadosFiltrados]);
 
-  // -------------------- RANKING DE COMPRADORES --------------------
+  // -------------------- RANKING DE COMPRADORES (ORIGINAL) --------------------
   const rankingCompradores = useMemo(() => {
     const grupos = {};
     dadosFiltrados.forEach(d => {
@@ -299,7 +296,7 @@ export default function App() {
       .sort((a, b) => b.itens - a.itens);
   }, [dadosFiltrados]);
 
-  // -------------------- RANKING DE CENTROS (TOP 8) --------------------
+  // -------------------- TOP CENTROS COM MAIS ITENS PENDENTES (ORIGINAL) --------------------
   const rankingCentros = useMemo(() => {
     const grupos = {};
     dadosFiltrados.forEach(d => {
@@ -322,7 +319,7 @@ export default function App() {
       .slice(0, 8);
   }, [dadosFiltrados]);
 
-  // -------------------- EVOLUÇÃO DAS TRATATIVAS (GEROU PEDIDO VS NÃO GEROU) --------------------
+  // -------------------- 3. ALTERAÇÃO: EVOLUÇÃO DAS TRATATIVAS (GEROU PEDIDO VS NÃO GEROU) --------------------
   const evolucaoTratativasData = useMemo(() => {
     const agrupadoPorData = {};
 
@@ -484,34 +481,40 @@ export default function App() {
         </div>
       </div>
 
-      {/* EVOLUÇÃO TEMPORAL (LAURENCE) */}
+      {/* 1. QUADRANTE EVOLUÇÃO TEMPORAL (NOVO - LAURENCE) */}
       <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80 mb-6">
         <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">Qtde_Requisições por Gestão_Compras e Date</h2>
         <p className="text-[11px] text-slate-400 mb-4">Volume de requisições por grupo de compras comparado por data</p>
         <div className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={evolucaoDataLaurence} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
-              <XAxis dataKey="gc" stroke="#64748B" fontSize={10} angle={-25} textAnchor="end" />
-              <YAxis stroke="#64748B" fontSize={10} />
-              <Tooltip contentStyle={{ backgroundColor: '#171E2E', borderColor: '#334155', borderRadius: '8px' }} />
-              {datasEvolucaoUnicas.map((dtStr, idx) => (
-                <Bar
-                  key={dtStr}
-                  dataKey={dtStr}
-                  name={dtStr}
-                  fill={idx === 0 ? '#3B82F6' : idx === 1 ? '#1D4ED8' : '#EA580C'}
-                  radius={[3, 3, 0, 0]}
-                >
-                  <LabelList dataKey={dtStr} position="top" fill="#94A3B8" fontSize={10} />
-                </Bar>
-              ))}
-            </BarChart>
-          </ResponsiveContainer>
+          {evolucaoDataLaurence.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={evolucaoDataLaurence} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
+                <XAxis dataKey="gc" stroke="#64748B" fontSize={10} angle={-25} textAnchor="end" />
+                <YAxis stroke="#64748B" fontSize={10} />
+                <Tooltip contentStyle={{ backgroundColor: '#171E2E', borderColor: '#334155', borderRadius: '8px' }} />
+                {datasEvolucaoUnicas.map((dtStr, idx) => (
+                  <Bar
+                    key={dtStr}
+                    dataKey={dtStr}
+                    name={dtStr}
+                    fill={idx === 0 ? '#3B82F6' : idx === 1 ? '#1D4ED8' : '#EA580C'}
+                    radius={[3, 3, 0, 0]}
+                  >
+                    <LabelList dataKey={dtStr} position="top" fill="#94A3B8" fontSize={10} />
+                  </Bar>
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex items-center justify-center text-xs text-slate-500">
+              Carregue a planilha via botão "Atualizar base (.xlsx)" para visualizar os dados.
+            </div>
+          )}
         </div>
       </div>
 
-      {/* AGING E PRINCIPAIS MOTIVOS */}
+      {/* AGING E PRINCIPAIS MOTIVOS (SEÇÃO INTACTA + PENDÊNCIAS DE REMESSA INCLUÍDAS) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
           <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">DISTRIBUIÇÃO POR FAIXA DE AGING</h2>
@@ -547,7 +550,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* CONCENTRAÇÃO POR GRUPO DE COMPRAS */}
+      {/* CONCENTRAÇÃO POR GRUPO DE COMPRAS (INTACTO) */}
       <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80 mb-6">
         <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">CONCENTRAÇÃO POR GRUPO DE COMPRAS (GC)</h2>
         <p className="text-[11px] text-slate-400 mb-4">Participação de cada grupo de compras no volume total de itens</p>
@@ -569,7 +572,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* RANKING DE COMPRADORES E CENTROS */}
+      {/* RANKING DE COMPRADORES E CENTROS (INTACTOS) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
           <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">RANKING DE COMPRADORES</h2>
@@ -586,15 +589,21 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {rankingCompradores.map(r => (
-                  <tr key={r.comprador} className="border-b border-slate-800/60 last:border-0">
-                    <td className="py-2 text-slate-200">{r.comprador}</td>
-                    <td className="py-2 text-right text-slate-300">{r.rcs}</td>
-                    <td className="py-2 text-right text-slate-300">{r.itens}</td>
-                    <td className="py-2 text-right text-slate-300">{r.agingMedio} d</td>
-                    <td className={`py-2 text-right font-semibold ${r.criticas60 > 0 ? 'text-red-400' : 'text-slate-300'}`}>{r.criticas60}</td>
+                {rankingCompradores.length > 0 ? (
+                  rankingCompradores.map(r => (
+                    <tr key={r.comprador} className="border-b border-slate-800/60 last:border-0">
+                      <td className="py-2 text-slate-200">{r.comprador}</td>
+                      <td className="py-2 text-right text-slate-300">{r.rcs}</td>
+                      <td className="py-2 text-right text-slate-300">{r.itens}</td>
+                      <td className="py-2 text-right text-slate-300">{r.agingMedio} d</td>
+                      <td className={`py-2 text-right font-semibold ${r.criticas60 > 0 ? 'text-red-400' : 'text-slate-300'}`}>{r.criticas60}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" className="py-4 text-center text-slate-500">Faça o upload do arquivo Excel para carregar a lista</td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -620,7 +629,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* EVOLUÇÃO DAS TRATATIVAS */}
+      {/* 3. QUADRANTE EVOLUÇÃO DAS TRATATIVAS (REFORMULADO) */}
       <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80 mb-6">
         <div className="flex flex-col md:flex-row justify-between md:items-end gap-2 mb-4">
           <div>
@@ -652,7 +661,7 @@ export default function App() {
           </div>
         ) : (
           <div className="h-32 flex items-center justify-center text-xs text-slate-500">
-            Nenhum item com dados de tratativa para o filtro atual.
+            Nenhum item carregado para exibição do gráfico de tratativa.
           </div>
         )}
 
