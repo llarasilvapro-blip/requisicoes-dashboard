@@ -188,8 +188,8 @@ export default function App() {
     const comTratativa = dadosFiltrados.filter(d => d.tratativa && String(d.tratativa).trim() !== '').length;
     const semTratativa = dadosFiltrados.length - comTratativa;
     return [
-      { name: 'Sem tratativa registrada', value: semTratativa, color: '#F59E0B' },
-      { name: 'Com tratativa definida', value: comTratativa, color: '#06B6D4' },
+      { name: 'Sem tratativa registrada', value: semTratativa, color: '#f59e0b' },
+      { name: 'Com tratativa definida', value: comTratativa, color: '#06b6d4' },
     ];
   }, [dadosFiltrados]);
 
@@ -235,7 +235,7 @@ export default function App() {
 
     return Object.values(mapa)
       .sort((a, b) => b.total - a.total)
-      .slice(0, 10);
+      .slice(0, 8);
   }, [dadosFiltrados]);
 
   const agingBarDataDinamico = useMemo(() => {
@@ -254,9 +254,9 @@ export default function App() {
 
   const analiseRemessaData = useMemo(() => {
     return [
-      { status: 'Remessa No Prazo', qtd: remessaDataReal.noPrazo, fill: '#10B981' },
-      { status: 'Remessa Vencida', qtd: remessaDataReal.atrasada, fill: '#EF4444' },
-      { status: 'Sem Data Registrada', qtd: remessaDataReal.semData, fill: '#64748B' },
+      { status: 'No Prazo', qtd: remessaDataReal.noPrazo, fill: '#10b981' },
+      { status: 'Vencida', qtd: remessaDataReal.atrasada, fill: '#ef4444' },
+      { status: 'Sem Data', qtd: remessaDataReal.semData, fill: '#6b7280' },
     ];
   }, [remessaDataReal]);
 
@@ -271,12 +271,12 @@ export default function App() {
 
     return Object.entries(contagem)
       .map(([motivo, qtd]) => ({ 
-        motivo: motivo.length > 25 ? motivo.substring(0, 25) + '...' : motivo, 
+        motivo: motivo.length > 22 ? motivo.substring(0, 22) + '...' : motivo, 
         qtd,
         perc: ((qtd / total) * 100).toFixed(1)
       }))
       .sort((a, b) => b.qtd - a.qtd)
-      .slice(0, 8);
+      .slice(0, 7);
   }, [dadosFiltrados]);
 
   const tratativaPieData = useMemo(() => {
@@ -288,10 +288,10 @@ export default function App() {
 
     const total = dadosFiltrados.length || 1;
     return Object.entries(contagem).map(([name, value]) => ({
-      name: name.length > 24 ? name.substring(0, 24) + '...' : name,
+      name: name.length > 22 ? name.substring(0, 22) + '...' : name,
       value,
       perc: ((value / total) * 100).toFixed(1)
-    })).sort((a, b) => b.value - a.value).slice(0, 8);
+    })).sort((a, b) => b.value - a.value).slice(0, 7);
   }, [dadosFiltrados]);
 
   const rankingCompradores = useMemo(() => {
@@ -323,17 +323,18 @@ export default function App() {
     const grupos = {};
     const total = dadosFiltrados.length || 1;
     dadosFiltrados.forEach(d => {
-      if (!grupos[d.centro]) {
-        grupos[d.centro] = { centro: d.centro, itens: 0, rcsSet: new Set(), somaDias: 0 };
+      const nomeLimpo = d.centro.replace('Indústria - ', '');
+      if (!grupos[nomeLimpo]) {
+        grupos[nomeLimpo] = { centro: nomeLimpo, itens: 0, rcsSet: new Set(), somaDias: 0 };
       }
-      const g = grupos[d.centro];
+      const g = grupos[nomeLimpo];
       g.itens += 1;
       g.rcsSet.add(d.rc);
       g.somaDias += d.diasRC;
     });
     return Object.values(grupos)
       .map(g => ({
-        centro: g.centro.length > 22 ? g.centro.substring(0, 22) + '...' : g.centro,
+        centro: g.centro.length > 20 ? g.centro.substring(0, 20) + '...' : g.centro,
         rcs: g.rcsSet.size,
         itens: g.itens,
         perc: ((g.itens / total) * 100).toFixed(1),
@@ -353,7 +354,7 @@ export default function App() {
           <p className="text-xs text-gray-400 mt-0.5 font-medium">{nomeArquivo}</p>
         </div>
 
-        <label className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-600 text-slate-950 text-xs font-semibold px-3.5 py-2 rounded cursor-pointer transition shadow-lg shadow-cyan-500/10 select-none">
+        <label className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-600 text-slate-950 text-xs font-semibold px-3 py-1.5 rounded cursor-pointer transition shadow-md select-none">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
           </svg>
@@ -362,46 +363,39 @@ export default function App() {
         </label>
       </header>
 
-      {/* BARRA DE FILTROS */}
-      <div className="bg-[#131927] p-3 rounded-lg border border-gray-800 mb-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full md:w-auto flex-1 max-w-4xl">
-          <div>
-            <label className="block text-gray-400 mb-1 font-medium">Centro:</label>
-            <select value={filtroCentro} onChange={(e) => setFiltroCentro(e.target.value)}
-              className="w-full bg-[#1f2937] border border-gray-700 rounded px-2 py-1.5 text-white outline-none focus:border-cyan-400">
-              {opcoesFiltros.centros.map(opcao => <option key={opcao} value={opcao}>{opcao}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-gray-400 mb-1 font-medium">Comprador:</label>
-            <select value={filtroComprador} onChange={(e) => setFiltroComprador(e.target.value)}
-              className="w-full bg-[#1f2937] border border-gray-700 rounded px-2 py-1.5 text-white outline-none focus:border-cyan-400">
-              {opcoesFiltros.compradores.map(opcao => <option key={opcao} value={opcao}>{opcao}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-gray-400 mb-1 font-medium">Grupo de Compras:</label>
-            <select value={filtroGC} onChange={(e) => setFiltroGC(e.target.value)}
-              className="w-full bg-[#1f2937] border border-gray-700 rounded px-2 py-1.5 text-white outline-none focus:border-cyan-400">
-              {opcoesFiltros.grupos.map(opcao => <option key={opcao} value={opcao}>{opcao}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-gray-400 mb-1 font-medium">Faixa de Aging:</label>
-            <select value={filtroAging} onChange={(e) => setFiltroAging(e.target.value)}
-              className="w-full bg-[#1f2937] border border-gray-700 rounded px-2 py-1.5 text-white outline-none focus:border-cyan-400">
-              {opcoesFiltros.agings.map(opcao => <option key={opcao} value={opcao}>{opcao}</option>)}
-            </select>
-          </div>
+      {/* FILTROS */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6 bg-[#131927] p-3 rounded-lg border border-gray-800 text-xs">
+        <div>
+          <label className="block text-gray-400 mb-1 font-medium">Centro:</label>
+          <select value={filtroCentro} onChange={(e) => setFiltroCentro(e.target.value)}
+            className="w-full bg-[#1f2937] border border-gray-700 rounded px-2 py-1 text-white outline-none focus:border-cyan-400">
+            {opcoesFiltros.centros.map(opcao => <option key={opcao} value={opcao}>{opcao}</option>)}
+          </select>
         </div>
-        <div className="text-right">
-          <span className="text-xs font-semibold text-cyan-400">
-            {dadosFiltrados.length} de {baseDados.length} itens filtrados
-          </span>
+        <div>
+          <label className="block text-gray-400 mb-1 font-medium">Comprador:</label>
+          <select value={filtroComprador} onChange={(e) => setFiltroComprador(e.target.value)}
+            className="w-full bg-[#1f2937] border border-gray-700 rounded px-2 py-1 text-white outline-none focus:border-cyan-400">
+            {opcoesFiltros.compradores.map(opcao => <option key={opcao} value={opcao}>{opcao}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-gray-400 mb-1 font-medium">Grupo de Compras:</label>
+          <select value={filtroGC} onChange={(e) => setFiltroGC(e.target.value)}
+            className="w-full bg-[#1f2937] border border-gray-700 rounded px-2 py-1 text-white outline-none focus:border-cyan-400">
+            {opcoesFiltros.grupos.map(opcao => <option key={opcao} value={opcao}>{opcao}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-gray-400 mb-1 font-medium">Faixa de Aging:</label>
+          <select value={filtroAging} onChange={(e) => setFiltroAging(e.target.value)}
+            className="w-full bg-[#1f2937] border border-gray-700 rounded px-2 py-1 text-white outline-none focus:border-cyan-400">
+            {opcoesFiltros.agings.map(opcao => <option key={opcao} value={opcao}>{opcao}</option>)}
+          </select>
         </div>
       </div>
 
-      {/* KPIS REORGANIZADOS */}
+      {/* KPIS REORGANIZADOS E ESTILIZADOS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
         <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
           <span className="text-[10px] text-gray-400 uppercase font-semibold">VOLUME REQUISIÇÕES</span>
@@ -424,7 +418,7 @@ export default function App() {
         <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
           <span className="text-[10px] text-gray-400 uppercase font-semibold">REMESSA VENCIDA</span>
           <p className="text-2xl font-bold text-red-400 mt-1">{percRemessaVencida}%</p>
-          <span className="text-[10px] text-gray-500">{remessaDataReal.atrasada} itens em atraso</span>
+          <span className="text-[10px] text-gray-500">{remessaDataReal.atrasada} itens atrasados</span>
         </div>
 
         <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
@@ -442,12 +436,12 @@ export default function App() {
 
       {baseDados.length > 0 ? (
         <>
-          {/* LINHA 1: RANKING DE COMPRADORES E AGING */}
+          {/* LINHA 1: RANKING COMPRADORES E FAIXA DE AGING */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 text-xs">
-            {/* 1. RANKING DE COMPRADORES */}
+            {/* 1. RANKING COMPRADORES */}
             <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
               <h2 className="text-xs font-semibold mb-3 text-gray-300 uppercase tracking-wider">1. RANKING DE COMPRADORES (CARGA x AGING)</h2>
-              <div className="overflow-x-auto max-h-72">
+              <div className="overflow-x-auto max-h-64">
                 <table className="w-full text-left border-collapse">
                   <thead className="sticky top-0 bg-[#131927]">
                     <tr className="border-b border-gray-800 text-gray-400 text-[10px] uppercase">
@@ -477,10 +471,10 @@ export default function App() {
               </div>
             </div>
 
-            {/* 2. DISTRIBUIÇÃO POR FAIXA DE AGING */}
+            {/* 2. FAIXA DE AGING */}
             <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
               <h2 className="text-xs font-semibold mb-3 text-gray-300 uppercase tracking-wider">2. DISTRIBUIÇÃO POR FAIXA DE AGING</h2>
-              <div className="h-64">
+              <div className="h-60">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={agingBarDataDinamico}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
@@ -502,17 +496,17 @@ export default function App() {
             </div>
           </div>
 
-          {/* LINHA 2: TRATATIVAS E DATAS DE REMESSA */}
+          {/* LINHA 2: TRATATIVAS E DATAS DE REMESSA (COM GRÁFICO DONUT REVISADO) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            {/* 3. DISTRIBUIÇÃO DOS STATUS DE TRATATIVA */}
+            {/* 3. TRATATIVA */}
             <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
               <h2 className="text-xs font-semibold mb-3 text-gray-300 uppercase tracking-wider">3. DISTRIBUIÇÃO DOS STATUS DE TRATATIVA</h2>
-              <div className="h-64">
+              <div className="h-60">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={tratativaPieData} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
                     <XAxis type="number" stroke="#6b7280" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                    <YAxis type="category" dataKey="name" stroke="#6b7280" width={160} tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                    <YAxis type="category" dataKey="name" stroke="#6b7280" width={170} tick={{ fontSize: 10, fill: '#9ca3af' }} />
                     <Tooltip 
                       formatter={(value, name, props) => [`${value} itens (${props.payload.perc}%)`, 'Volume']}
                       contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', borderRadius: '6px', fontSize: '12px' }} 
@@ -525,51 +519,70 @@ export default function App() {
               </div>
             </div>
 
-            {/* 4. ANÁLISE DAS DATAS DE REMESSA (DONUT) */}
+            {/* 4. ANÁLISE REMESSA (DONUT MELHORADO) */}
             <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
               <h2 className="text-xs font-semibold mb-3 text-gray-300 uppercase tracking-wider">4. ANÁLISE DAS DATAS DE REMESSA</h2>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={analiseRemessaData.filter(d => d.qtd > 0)}
-                      dataKey="qtd"
-                      nameKey="status"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={75}
-                      innerRadius={45}
-                      paddingAngle={3}
-                    >
-                      {analiseRemessaData.filter(d => d.qtd > 0).map((entry, index) => (
-                        <Cell key={`cell-remessa-${index}`} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', borderRadius: '6px', fontSize: '12px' }}
-                      formatter={(value, name) => [
-                        `${value} itens (${((value / dadosFiltrados.length) * 100).toFixed(1)}%)`,
-                        name
-                      ]}
-                    />
-                    <Legend wrapperStyle={{ fontSize: '11px', color: '#9ca3af' }} />
-                  </PieChart>
-                </ResponsiveContainer>
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center h-60">
+                <div className="sm:col-span-6 h-full relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={analiseRemessaData.filter(d => d.qtd > 0)}
+                        dataKey="qtd"
+                        nameKey="status"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={70}
+                        innerRadius={45}
+                        paddingAngle={3}
+                      >
+                        {analiseRemessaData.filter(d => d.qtd > 0).map((entry, index) => (
+                          <Cell key={`cell-remessa-${index}`} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', borderRadius: '6px', fontSize: '12px' }}
+                        formatter={(value, name) => [
+                          `${value} itens (${((value / dadosFiltrados.length) * 100).toFixed(1)}%)`,
+                          name
+                        ]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="sm:col-span-6 space-y-2">
+                  {analiseRemessaData.map((item, idx) => {
+                    const pct = dadosFiltrados.length ? ((item.qtd / dadosFiltrados.length) * 100).toFixed(1) : 0;
+                    return (
+                      <div key={idx} className="flex justify-between items-center p-2 rounded bg-[#1a2234] border border-gray-800/80 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.fill }}></span>
+                          <span className="text-gray-300 font-medium">{item.status}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-bold text-white">{item.qtd}</span>
+                          <span className="text-[10px] text-gray-400 ml-1">({pct}%)</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
 
           {/* LINHA 3: MOTIVOS E GRUPOS DE COMPRAS */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            {/* 5. PRINCIPAIS MOTIVOS DE PENDÊNCIA (OBS) */}
+            {/* 5. OBS MOTIVOS */}
             <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
               <h2 className="text-xs font-semibold mb-3 text-gray-300 uppercase tracking-wider">5. PRINCIPAIS MOTIVOS DE PENDÊNCIA (OBS)</h2>
-              <div className="h-64">
+              <div className="h-60">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={motivosOBSData} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
                     <XAxis type="number" stroke="#6b7280" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                    <YAxis type="category" dataKey="motivo" stroke="#6b7280" width={160} tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                    <YAxis type="category" dataKey="motivo" stroke="#6b7280" width={170} tick={{ fontSize: 10, fill: '#9ca3af' }} />
                     <Tooltip 
                       formatter={(val, name, props) => [`${val} ocorrências (${props.payload.perc}%)`, 'Ocorrências']}
                       contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', borderRadius: '6px', fontSize: '12px' }} 
@@ -582,10 +595,10 @@ export default function App() {
               </div>
             </div>
 
-            {/* 6. CONCENTRAÇÃO POR GRUPO DE COMPRAS */}
+            {/* 6. CONCENTRAÇÃO GC */}
             <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
               <h2 className="text-xs font-semibold mb-3 text-gray-300 uppercase tracking-wider">6. CONCENTRAÇÃO POR GRUPO DE COMPRAS (GC)</h2>
-              <div className="h-64">
+              <div className="h-60">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={concentracaoGCData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
@@ -609,7 +622,7 @@ export default function App() {
             {/* 7. EVOLUÇÃO TEMPORAL */}
             <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
               <h2 className="text-xs font-semibold mb-3 text-gray-300 uppercase tracking-wider">7. EVOLUÇÃO TEMPORAL POR GRUPO DE COMPRAS</h2>
-              <div className="h-64">
+              <div className="h-60">
                 {evolucaoDataLaurence.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={evolucaoDataLaurence}>
@@ -636,15 +649,15 @@ export default function App() {
               </div>
             </div>
 
-            {/* 8. TOP CENTROS COM MAIS ITENS PENDENTES */}
+            {/* 8. TOP CENTROS (EIXO Y EXPANDIDO) */}
             <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
               <h2 className="text-xs font-semibold mb-3 text-gray-300 uppercase tracking-wider">8. TOP CENTROS COM MAIS ITENS PENDENTES</h2>
-              <div className="h-64">
+              <div className="h-60">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={rankingCentros} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
                     <XAxis type="number" stroke="#6b7280" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                    <YAxis type="category" dataKey="centro" stroke="#6b7280" tick={{ fontSize: 10, fill: '#9ca3af' }} width={160} />
+                    <YAxis type="category" dataKey="centro" stroke="#6b7280" tick={{ fontSize: 10, fill: '#9ca3af' }} width={170} />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', borderRadius: '6px', fontSize: '12px' }}
                       formatter={(value, name, props) => name === 'itens' ? [`${value} itens (${props.payload.perc}%) · aging médio ${props.payload.agingMedio}d`, 'Volume'] : [value, name]}
