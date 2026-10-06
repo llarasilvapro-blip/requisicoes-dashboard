@@ -183,13 +183,13 @@ export default function App() {
     return ((remessaDataReal.atrasada / total) * 100).toFixed(1).replace('.', ',');
   }, [dadosFiltrados, remessaDataReal]);
 
-  // STATUS TRATATIVA (KPI)
+  // STATUS TRATATIVA
   const tratativaStatusData = useMemo(() => {
     const comTratativa = dadosFiltrados.filter(d => d.tratativa && String(d.tratativa).trim() !== '').length;
     const semTratativa = dadosFiltrados.length - comTratativa;
     return [
       { name: 'Sem tratativa registrada', value: semTratativa, color: '#F59E0B' },
-      { name: 'Com tratativa definida', value: comTratativa, color: '#00E599' },
+      { name: 'Com tratativa definida', value: comTratativa, color: '#06B6D4' },
     ];
   }, [dadosFiltrados]);
 
@@ -200,7 +200,7 @@ export default function App() {
     return ((sem / total) * 100).toFixed(1).replace('.', ',');
   }, [dadosFiltrados, tratativaStatusData]);
 
-  // 1. CONCENTRAÇÃO GC
+  // DADOS DE GRÁFICOS
   const concentracaoGCData = useMemo(() => {
     const contagem = {};
     dadosFiltrados.forEach(d => {
@@ -212,7 +212,6 @@ export default function App() {
       .sort((a, b) => b.qtd - a.qtd);
   }, [dadosFiltrados]);
 
-  // 2. EVOLUÇÃO TEMPORAL (LAURENCE)
   const datasEvolucaoUnicas = useMemo(() => {
     const setDatas = new Set();
     dadosFiltrados.forEach(d => {
@@ -236,32 +235,31 @@ export default function App() {
 
     return Object.values(mapa)
       .sort((a, b) => b.total - a.total)
-      .slice(0, 12);
+      .slice(0, 10);
   }, [dadosFiltrados]);
 
-  // 3. FAIXAS DE AGING
   const agingBarDataDinamico = useMemo(() => {
     const faixas = ['0 - 15 dias', '16 - 30 dias', '31 - 60 dias', 'Acima de 60 dias'];
+    const total = dadosFiltrados.length || 1;
     return faixas.map(faixa => {
       const itensNaFaixa = dadosFiltrados.filter(d => d.faixaAging === faixa);
       return {
         faixa,
         itens: itensNaFaixa.length,
         rcs: new Set(itensNaFaixa.map(d => d.rc)).size,
+        percItens: ((itensNaFaixa.length / total) * 100).toFixed(1)
       };
     });
   }, [dadosFiltrados]);
 
-  // 4. PIZZA DE REMESSA
   const analiseRemessaData = useMemo(() => {
     return [
-      { status: 'Remessa No Prazo', qtd: remessaDataReal.noPrazo, fill: '#00E599' },
+      { status: 'Remessa No Prazo', qtd: remessaDataReal.noPrazo, fill: '#10B981' },
       { status: 'Remessa Vencida', qtd: remessaDataReal.atrasada, fill: '#EF4444' },
       { status: 'Sem Data Registrada', qtd: remessaDataReal.semData, fill: '#64748B' },
     ];
   }, [remessaDataReal]);
 
-  // 5. ANÁLISE EXCLUSIVA DA COLUNA 'OBS'
   const motivosOBSData = useMemo(() => {
     const contagem = {};
     dadosFiltrados.forEach(d => {
@@ -269,13 +267,18 @@ export default function App() {
       if (!obs) return;
       contagem[obs] = (contagem[obs] || 0) + 1;
     });
+    const total = dadosFiltrados.length || 1;
 
     return Object.entries(contagem)
-      .map(([motivo, qtd]) => ({ motivo, qtd }))
-      .sort((a, b) => b.qtd - a.qtd);
+      .map(([motivo, qtd]) => ({ 
+        motivo: motivo.length > 25 ? motivo.substring(0, 25) + '...' : motivo, 
+        qtd,
+        perc: ((qtd / total) * 100).toFixed(1)
+      }))
+      .sort((a, b) => b.qtd - a.qtd)
+      .slice(0, 8);
   }, [dadosFiltrados]);
 
-  // 6. BARRAS DE TRATATIVAS
   const tratativaPieData = useMemo(() => {
     const contagem = {};
     dadosFiltrados.forEach(d => {
@@ -285,15 +288,15 @@ export default function App() {
 
     const total = dadosFiltrados.length || 1;
     return Object.entries(contagem).map(([name, value]) => ({
-      name,
+      name: name.length > 24 ? name.substring(0, 24) + '...' : name,
       value,
-      perc: ((value / total) * 100).toFixed(1).replace('.', ',')
-    })).sort((a, b) => b.value - a.value);
+      perc: ((value / total) * 100).toFixed(1)
+    })).sort((a, b) => b.value - a.value).slice(0, 8);
   }, [dadosFiltrados]);
 
-  // 7. RANKINGS
   const rankingCompradores = useMemo(() => {
     const grupos = {};
+    const totalItensGlobal = dadosFiltrados.length || 1;
     dadosFiltrados.forEach(d => {
       if (!grupos[d.comprador]) {
         grupos[d.comprador] = { comprador: d.comprador, itens: 0, rcsSet: new Set(), somaDias: 0, criticas60: 0 };
@@ -309,6 +312,7 @@ export default function App() {
         comprador: g.comprador,
         rcs: g.rcsSet.size,
         itens: g.itens,
+        pctItens: ((g.itens / totalItensGlobal) * 100).toFixed(1),
         agingMedio: (g.somaDias / g.itens).toFixed(1).replace('.', ','),
         criticas60: g.criticas60,
       }))
@@ -317,6 +321,7 @@ export default function App() {
 
   const rankingCentros = useMemo(() => {
     const grupos = {};
+    const total = dadosFiltrados.length || 1;
     dadosFiltrados.forEach(d => {
       if (!grupos[d.centro]) {
         grupos[d.centro] = { centro: d.centro, itens: 0, rcsSet: new Set(), somaDias: 0 };
@@ -328,344 +333,339 @@ export default function App() {
     });
     return Object.values(grupos)
       .map(g => ({
-        centro: g.centro,
+        centro: g.centro.length > 22 ? g.centro.substring(0, 22) + '...' : g.centro,
         rcs: g.rcsSet.size,
         itens: g.itens,
+        perc: ((g.itens / total) * 100).toFixed(1),
         agingMedio: Number((g.somaDias / g.itens).toFixed(1)),
       }))
       .sort((a, b) => b.itens - a.itens)
       .slice(0, 8);
   }, [dadosFiltrados]);
-
   return (
-    <div className="min-h-screen bg-[#0A0E17] text-[#E2E8F0] p-6 font-sans">
+    <div className="min-h-screen bg-[#0b0f19] text-white p-6 font-sans">
 
       {/* CABEÇALHO */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 pb-4 border-b border-gray-800 gap-4">
         <div>
-          <p className="text-[11px] font-bold tracking-wider text-[#00E599] uppercase mb-0.5">
-            PROCUREMENT · REQUISIÇÕES DE COMPRA
-          </p>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            Dashboard de Requisições
-          </h1>
-          <p className="text-xs text-slate-400 mt-0.5 font-medium">
-            {nomeArquivo}
-          </p>
+          <span className="text-[10px] text-cyan-400 font-semibold tracking-wider uppercase">PROCUREMENT · REQUISIÇÕES DE COMPRA</span>
+          <h1 className="text-xl font-bold mt-0.5">Dashboard de Requisições</h1>
+          <p className="text-xs text-gray-400 mt-0.5 font-medium">{nomeArquivo}</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <label className="px-4 py-2 bg-[#00E599] hover:bg-[#00C282] text-xs font-bold text-[#0A0E17] rounded-lg transition shadow-lg shadow-[#00E599]/10 cursor-pointer inline-flex items-center gap-2 select-none">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-            </svg>
-            Atualizar base (.xlsx)
-            <input type="file" onChange={handleFileChange} accept=".xlsx, .xls, .csv" className="hidden" />
-          </label>
-        </div>
-      </div>
+        <label className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-600 text-slate-950 text-xs font-semibold px-3.5 py-2 rounded cursor-pointer transition shadow-lg shadow-cyan-500/10 select-none">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          Atualizar base (.xlsx)
+          <input type="file" onChange={handleFileChange} accept=".xlsx, .xls, .csv" className="hidden" />
+        </label>
+      </header>
 
       {/* BARRA DE FILTROS */}
-      <div className="bg-[#111726] p-4 rounded-xl border border-slate-800/80 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div className="bg-[#131927] p-3 rounded-lg border border-gray-800 mb-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full md:w-auto flex-1 max-w-4xl">
           <div>
-            <label className="block text-[10px] text-slate-400 mb-1 font-medium">Centro</label>
+            <label className="block text-gray-400 mb-1 font-medium">Centro:</label>
             <select value={filtroCentro} onChange={(e) => setFiltroCentro(e.target.value)}
-              className="w-full bg-[#1A2333] border border-slate-700/60 rounded-lg text-xs text-white p-2 outline-none focus:border-[#00E599]">
+              className="w-full bg-[#1f2937] border border-gray-700 rounded px-2 py-1.5 text-white outline-none focus:border-cyan-400">
               {opcoesFiltros.centros.map(opcao => <option key={opcao} value={opcao}>{opcao}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-[10px] text-slate-400 mb-1 font-medium">Comprador</label>
+            <label className="block text-gray-400 mb-1 font-medium">Comprador:</label>
             <select value={filtroComprador} onChange={(e) => setFiltroComprador(e.target.value)}
-              className="w-full bg-[#1A2333] border border-slate-700/60 rounded-lg text-xs text-white p-2 outline-none focus:border-[#00E599]">
+              className="w-full bg-[#1f2937] border border-gray-700 rounded px-2 py-1.5 text-white outline-none focus:border-cyan-400">
               {opcoesFiltros.compradores.map(opcao => <option key={opcao} value={opcao}>{opcao}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-[10px] text-slate-400 mb-1 font-medium">Grupo de compras</label>
+            <label className="block text-gray-400 mb-1 font-medium">Grupo de Compras:</label>
             <select value={filtroGC} onChange={(e) => setFiltroGC(e.target.value)}
-              className="w-full bg-[#1A2333] border border-slate-700/60 rounded-lg text-xs text-white p-2 outline-none focus:border-[#00E599]">
+              className="w-full bg-[#1f2937] border border-gray-700 rounded px-2 py-1.5 text-white outline-none focus:border-cyan-400">
               {opcoesFiltros.grupos.map(opcao => <option key={opcao} value={opcao}>{opcao}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-[10px] text-slate-400 mb-1 font-medium">Faixa de aging</label>
+            <label className="block text-gray-400 mb-1 font-medium">Faixa de Aging:</label>
             <select value={filtroAging} onChange={(e) => setFiltroAging(e.target.value)}
-              className="w-full bg-[#1A2333] border border-slate-700/60 rounded-lg text-xs text-white p-2 outline-none focus:border-[#00E599]">
+              className="w-full bg-[#1f2937] border border-gray-700 rounded px-2 py-1.5 text-white outline-none focus:border-cyan-400">
               {opcoesFiltros.agings.map(opcao => <option key={opcao} value={opcao}>{opcao}</option>)}
             </select>
           </div>
         </div>
         <div className="text-right">
-          <span className="text-xs font-semibold text-slate-400">
-            {dadosFiltrados.length} de {baseDados.length} itens
+          <span className="text-xs font-semibold text-cyan-400">
+            {dadosFiltrados.length} de {baseDados.length} itens filtrados
           </span>
         </div>
       </div>
 
-      {/* BLOCO 1: VISÃO MACRO & KPIS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        <div className="bg-[#111726] p-4 rounded-xl border border-slate-800/80">
-          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">VOLUME DE REQUISIÇÕES</p>
-          <h3 className="text-2xl font-black text-[#00E599] mt-1">{totalRCsUnicas} RCs</h3>
-          <p className="text-xs text-slate-400 mt-1">{dadosFiltrados.length} itens solicitados</p>
+      {/* KPIS REORGANIZADOS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
+        <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
+          <span className="text-[10px] text-gray-400 uppercase font-semibold">VOLUME REQUISIÇÕES</span>
+          <p className="text-2xl font-bold text-cyan-400 mt-1">{totalRCsUnicas} RCs</p>
+          <span className="text-[10px] text-gray-500">{dadosFiltrados.length} itens solicitados</span>
         </div>
-        <div className="bg-[#111726] p-4 rounded-xl border border-slate-800/80">
-          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">LEAD TIME MÉDIO (DIAS RC)</p>
-          <h3 className="text-2xl font-black text-white mt-1">{leadTimeMedio} dias</h3>
-          <p className="text-xs text-slate-400 mt-1">Pico de {picoDias} dias</p>
+
+        <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
+          <span className="text-[10px] text-gray-400 uppercase font-semibold">LEAD TIME MÉDIO</span>
+          <p className="text-2xl font-bold text-white mt-1">{leadTimeMedio} dias</p>
+          <span className="text-[10px] text-amber-400 font-medium">Pico: {picoDias} dias</span>
         </div>
-        <div className="bg-[#111726] p-4 rounded-xl border border-slate-800/80">
-          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">PENDÊNCIAS CRÍTICAS</p>
-          <h3 className="text-2xl font-black text-white mt-1">{pendenciasCriticas.perc}%</h3>
-          <p className="text-xs text-slate-400 mt-1">{pendenciasCriticas.rcs30} itens &gt; 30 dias · {pendenciasCriticas.rcs60} &gt; 60 dias</p>
+
+        <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
+          <span className="text-[10px] text-gray-400 uppercase font-semibold">PENDÊNCIAS CRÍTICAS</span>
+          <p className="text-2xl font-bold text-red-400 mt-1">{pendenciasCriticas.perc}%</p>
+          <span className="text-[10px] text-gray-500">{pendenciasCriticas.rcs30} &gt; 30d · {pendenciasCriticas.rcs60} &gt; 60d</span>
         </div>
-        <div className="bg-[#111726] p-4 rounded-xl border border-slate-800/80">
-          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">COBERTURA OPERACIONAL</p>
-          <h3 className="text-2xl font-black text-white mt-1">{coberturaOperacional.centrosAtivos} centros</h3>
-          <p className="text-xs text-slate-400 mt-1">{coberturaOperacional.qtdTotalUnidades.toLocaleString('pt-BR')} unidades solicitadas</p>
+
+        <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
+          <span className="text-[10px] text-gray-400 uppercase font-semibold">REMESSA VENCIDA</span>
+          <p className="text-2xl font-bold text-red-400 mt-1">{percRemessaVencida}%</p>
+          <span className="text-[10px] text-gray-500">{remessaDataReal.atrasada} itens em atraso</span>
+        </div>
+
+        <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
+          <span className="text-[10px] text-gray-400 uppercase font-semibold">SEM TRATATIVA</span>
+          <p className="text-2xl font-bold text-amber-400 mt-1">{percSemTratativa}%</p>
+          <span className="text-[10px] text-gray-500">Sem ação registrada</span>
+        </div>
+
+        <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
+          <span className="text-[10px] text-gray-400 uppercase font-semibold">COBERTURA OPERACIONAL</span>
+          <p className="text-2xl font-bold text-emerald-400 mt-1">{coberturaOperacional.centrosAtivos} centros</p>
+          <span className="text-[10px] text-gray-500">{coberturaOperacional.qtdTotalUnidades.toLocaleString('pt-BR')} un. solicitadas</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <div className="bg-[#111726] p-4 rounded-xl border border-red-500/30">
-          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">REMESSA JÁ VENCIDA (vs. hoje)</p>
-          <h3 className="text-2xl font-black text-red-400 mt-1">{percRemessaVencida}%</h3>
-          <p className="text-xs text-slate-400 mt-1">
-            {remessaDataReal.atrasada} itens com data de remessa anterior a {HOJE.toLocaleDateString('pt-BR')}
-          </p>
-        </div>
-        <div className="bg-[#111726] p-4 rounded-xl border border-amber-500/30">
-          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">SEM TRATATIVA REGISTRADA</p>
-          <h3 className="text-2xl font-black text-amber-400 mt-1">{percSemTratativa}%</h3>
-          <p className="text-xs text-slate-400 mt-1">
-            {tratativaStatusData.find(t => t.name.startsWith('Sem'))?.value || 0} itens aguardando ação/comentário do comprador
-          </p>
-        </div>
-      </div>
-
-      {/* BLOCO 1 (CONT.): DISTRIBUIÇÃO E CONCENTRAÇÃO DO VOLUME DE DEMANDA */}
-      <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80 mb-6">
-        <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">1. CONCENTRAÇÃO POR GRUPO DE COMPRAS (GC)</h2>
-        <p className="text-[11px] text-slate-400 mb-4">Participação de cada grupo de compras no volume total de itens solicitados</p>
-        <div className="h-52">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={concentracaoGCData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
-              <XAxis dataKey="gc" stroke="#64748B" fontSize={10} />
-              <YAxis stroke="#64748B" fontSize={10} allowDecimals={false} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#171E2E', borderColor: '#334155', borderRadius: '8px' }}
-                formatter={(value, name, props) => [`${value} itens (${props.payload.perc}%)`, 'Volume']}
-              />
-              <Bar dataKey="qtd" fill="#00E599" radius={[3, 3, 0, 0]} name="Itens">
-                <LabelList dataKey="perc" position="top" formatter={(v) => `${v}%`} fill="#94A3B8" fontSize={10} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80 mb-6">
-        <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">2. EVOLUÇÃO TEMPORAL POR GRUPO DE COMPRAS E DATA</h2>
-        <p className="text-[11px] text-slate-400 mb-4">Entrada do volume de requisições por grupo de compras comparado por data</p>
-        <div className="h-64">
-          {evolucaoDataLaurence.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={evolucaoDataLaurence} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
-                <XAxis dataKey="gc" stroke="#64748B" fontSize={10} angle={-25} textAnchor="end" />
-                <YAxis stroke="#64748B" fontSize={10} />
-                <Tooltip contentStyle={{ backgroundColor: '#171E2E', borderColor: '#334155', borderRadius: '8px' }} />
-                {datasEvolucaoUnicas.map((dtStr, idx) => (
-                  <Bar
-                    key={dtStr}
-                    dataKey={dtStr}
-                    name={dtStr}
-                    fill={idx === 0 ? '#3B82F6' : idx === 1 ? '#1D4ED8' : '#EA580C'}
-                    radius={[3, 3, 0, 0]}
-                  >
-                    <LabelList dataKey={dtStr} position="top" fill="#94A3B8" fontSize={10} />
-                  </Bar>
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-full flex items-center justify-center text-xs text-slate-500">
-              Carregue a planilha para visualizar a evolução temporal.
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* BLOCO 2: SAÚDE DO BACKLOG & PRAZOS (AGING E REMESSA) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
-          <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">3. DISTRIBUIÇÃO POR FAIXA DE AGING</h2>
-          <p className="text-[11px] text-slate-400 mb-4">Volume de itens e RCs por tempo de permanência em aberto</p>
-          <div className="h-60">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={agingBarDataDinamico}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
-                <XAxis dataKey="faixa" stroke="#64748B" fontSize={10} />
-                <YAxis stroke="#64748B" fontSize={10} />
-                <Tooltip contentStyle={{ backgroundColor: '#171E2E', borderColor: '#334155', borderRadius: '8px' }} />
-                <Bar dataKey="itens" fill="#00E599" radius={[3, 3, 0, 0]} name="Itens" />
-                <Bar dataKey="rcs" fill="#F59E0B" radius={[3, 3, 0, 0]} name="RCs" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
-          <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">4. ANÁLISE DAS DATAS DE REMESSA</h2>
-          <p className="text-[11px] text-slate-400 mb-2">Proporção de cumprimento dos prazos prometidos de entrega</p>
-          <div className="h-60">
-            {dadosFiltrados.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={analiseRemessaData.filter(d => d.qtd > 0)}
-                    dataKey="qtd"
-                    nameKey="status"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    innerRadius={45}
-                    paddingAngle={2}
-                  >
-                    {analiseRemessaData.filter(d => d.qtd > 0).map((entry, index) => (
-                      <Cell key={`cell-remessa-pie-${index}`} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#171E2E', borderColor: '#334155', borderRadius: '8px' }}
-                    formatter={(value, name) => [
-                      `${value} itens (${((value / dadosFiltrados.length) * 100).toFixed(1).replace('.', ',')}%)`,
-                      name
-                    ]}
-                  />
-                  <Legend
-                    layout="vertical"
-                    verticalAlign="middle"
-                    align="right"
-                    wrapperStyle={{ fontSize: '10px', color: '#94A3B8' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-xs text-slate-500">
-                Sem dados para exibição do gráfico.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* BLOCO 3: DIAGNÓSTICO DE OFENSORES E TRATATIVAS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
-          <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">5. PRINCIPAIS MOTIVOS DE PENDÊNCIA (OBS)</h2>
-          <p className="text-[11px] text-slate-400 mb-4">Ocorrências registadas para identificar os travamentos de processo</p>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={motivosOBSData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" horizontal={false} />
-                <XAxis type="number" stroke="#64748B" fontSize={10} allowDecimals={false} />
-                <YAxis type="category" dataKey="motivo" stroke="#64748B" fontSize={9} width={140} />
-                <Tooltip contentStyle={{ backgroundColor: '#171E2E', borderColor: '#334155', borderRadius: '8px' }} />
-                <Bar dataKey="qtd" fill="#00E599" radius={[0, 3, 3, 0]} name="Ocorrências" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
-          <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">6. DISTRIBUIÇÃO DOS STATUS DE TRATATIVA</h2>
-          <p className="text-[11px] text-slate-400 mb-4">Volume total de itens por status atual de atendimento do comprador</p>
-          <div className="h-64">
-            {tratativaPieData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={tratativaPieData} layout="vertical" margin={{ left: 10, right: 30, top: 10, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" horizontal={false} />
-                  <XAxis type="number" stroke="#64748B" fontSize={10} allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" stroke="#64748B" fontSize={9} width={130} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#171E2E', borderColor: '#334155', borderRadius: '8px' }}
-                    formatter={(value, name, props) => [`${value} itens (${props.payload.perc}%)`, 'Volume']}
-                  />
-                  <Bar dataKey="value" fill="#00E599" radius={[0, 4, 4, 0]} name="Itens">
-                    <LabelList dataKey="perc" position="right" formatter={(v) => `${v}%`} fill="#94A3B8" fontSize={10} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-xs text-slate-500">
-                Sem dados de tratativas.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* BLOCO 4: OPERACIONAL (COMPRADORES E CENTROS) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
-          <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">7. RANKING DE COMPRADORES</h2>
-          <p className="text-[11px] text-slate-400 mb-3">Distribuição de carga de trabalho e aging médio por comprador</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-slate-400 text-[10px] uppercase border-b border-slate-800">
-                  <th className="text-left py-2 font-semibold">Comprador</th>
-                  <th className="text-right py-2 font-semibold">RCs</th>
-                  <th className="text-right py-2 font-semibold">Itens</th>
-                  <th className="text-right py-2 font-semibold">Aging médio</th>
-                  <th className="text-right py-2 font-semibold">&gt; 60 dias</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rankingCompradores.length > 0 ? (
-                  rankingCompradores.map(r => (
-                    <tr key={r.comprador} className="border-b border-slate-800/60 last:border-0">
-                      <td className="py-2 text-slate-200">{r.comprador}</td>
-                      <td className="py-2 text-right text-slate-300">{r.rcs}</td>
-                      <td className="py-2 text-right text-slate-300">{r.itens}</td>
-                      <td className="py-2 text-right text-slate-300">{r.agingMedio} d</td>
-                      <td className={`py-2 text-right font-semibold ${r.criticas60 > 0 ? 'text-red-400' : 'text-slate-300'}`}>{r.criticas60}</td>
+      {baseDados.length > 0 ? (
+        <>
+          {/* LINHA 1: RANKING DE COMPRADORES E AGING */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 text-xs">
+            {/* 1. RANKING DE COMPRADORES */}
+            <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
+              <h2 className="text-xs font-semibold mb-3 text-gray-300 uppercase tracking-wider">1. RANKING DE COMPRADORES (CARGA x AGING)</h2>
+              <div className="overflow-x-auto max-h-72">
+                <table className="w-full text-left border-collapse">
+                  <thead className="sticky top-0 bg-[#131927]">
+                    <tr className="border-b border-gray-800 text-gray-400 text-[10px] uppercase">
+                      <th className="pb-2">Comprador</th>
+                      <th className="pb-2 text-center">RCs</th>
+                      <th className="pb-2 text-center">Itens (% Tot)</th>
+                      <th className="pb-2 text-right">Aging Médio</th>
+                      <th className="pb-2 text-right">&gt; 60 dias</th>
                     </tr>
-                  ))
+                  </thead>
+                  <tbody className="divide-y divide-gray-800/50">
+                    {rankingCompradores.map((r, i) => (
+                      <tr key={i} className="hover:bg-[#1a2234]">
+                        <td className="py-2 text-gray-200 font-medium">{r.comprador}</td>
+                        <td className="py-2 text-center text-cyan-400 font-semibold">{r.rcs}</td>
+                        <td className="py-2 text-center text-gray-300">
+                          {r.itens} <span className="text-[10px] text-cyan-400">({r.pctItens}%)</span>
+                        </td>
+                        <td className="py-2 text-right text-gray-300">{r.agingMedio} d</td>
+                        <td className={`py-2 text-right font-bold ${r.criticas60 > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                          {r.criticas60}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 2. DISTRIBUIÇÃO POR FAIXA DE AGING */}
+            <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
+              <h2 className="text-xs font-semibold mb-3 text-gray-300 uppercase tracking-wider">2. DISTRIBUIÇÃO POR FAIXA DE AGING</h2>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={agingBarDataDinamico}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+                    <XAxis dataKey="faixa" stroke="#6b7280" tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                    <YAxis stroke="#6b7280" tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                    <Tooltip 
+                      formatter={(val, name, props) => name === "Itens" 
+                        ? [`${val} (${props.payload.percItens}%)`, name] 
+                        : [val, name]}
+                      contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', borderRadius: '6px', fontSize: '12px' }} 
+                    />
+                    <Bar dataKey="itens" fill="#06b6d4" radius={[2, 2, 0, 0]} name="Itens">
+                      <LabelList dataKey="percItens" position="top" formatter={(v) => `${v}%`} fill="#9ca3af" fontSize={10} />
+                    </Bar>
+                    <Bar dataKey="rcs" fill="#f59e0b" radius={[2, 2, 0, 0]} name="RCs" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          {/* LINHA 2: TRATATIVAS E DATAS DE REMESSA */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            {/* 3. DISTRIBUIÇÃO DOS STATUS DE TRATATIVA */}
+            <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
+              <h2 className="text-xs font-semibold mb-3 text-gray-300 uppercase tracking-wider">3. DISTRIBUIÇÃO DOS STATUS DE TRATATIVA</h2>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={tratativaPieData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
+                    <XAxis type="number" stroke="#6b7280" tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                    <YAxis type="category" dataKey="name" stroke="#6b7280" width={160} tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                    <Tooltip 
+                      formatter={(value, name, props) => [`${value} itens (${props.payload.perc}%)`, 'Volume']}
+                      contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', borderRadius: '6px', fontSize: '12px' }} 
+                    />
+                    <Bar dataKey="value" fill="#10b981" radius={[0, 4, 4, 0]} name="Itens">
+                      <LabelList dataKey="perc" position="right" formatter={(v) => `${v}%`} fill="#9ca3af" fontSize={10} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* 4. ANÁLISE DAS DATAS DE REMESSA (DONUT) */}
+            <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
+              <h2 className="text-xs font-semibold mb-3 text-gray-300 uppercase tracking-wider">4. ANÁLISE DAS DATAS DE REMESSA</h2>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={analiseRemessaData.filter(d => d.qtd > 0)}
+                      dataKey="qtd"
+                      nameKey="status"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={75}
+                      innerRadius={45}
+                      paddingAngle={3}
+                    >
+                      {analiseRemessaData.filter(d => d.qtd > 0).map((entry, index) => (
+                        <Cell key={`cell-remessa-${index}`} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', borderRadius: '6px', fontSize: '12px' }}
+                      formatter={(value, name) => [
+                        `${value} itens (${((value / dadosFiltrados.length) * 100).toFixed(1)}%)`,
+                        name
+                      ]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '11px', color: '#9ca3af' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          {/* LINHA 3: MOTIVOS E GRUPOS DE COMPRAS */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            {/* 5. PRINCIPAIS MOTIVOS DE PENDÊNCIA (OBS) */}
+            <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
+              <h2 className="text-xs font-semibold mb-3 text-gray-300 uppercase tracking-wider">5. PRINCIPAIS MOTIVOS DE PENDÊNCIA (OBS)</h2>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={motivosOBSData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
+                    <XAxis type="number" stroke="#6b7280" tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                    <YAxis type="category" dataKey="motivo" stroke="#6b7280" width={160} tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                    <Tooltip 
+                      formatter={(val, name, props) => [`${val} ocorrências (${props.payload.perc}%)`, 'Ocorrências']}
+                      contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', borderRadius: '6px', fontSize: '12px' }} 
+                    />
+                    <Bar dataKey="qtd" fill="#f59e0b" radius={[0, 4, 4, 0]} name="Ocorrências">
+                      <LabelList dataKey="perc" position="right" formatter={(v) => `${v}%`} fill="#9ca3af" fontSize={10} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* 6. CONCENTRAÇÃO POR GRUPO DE COMPRAS */}
+            <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
+              <h2 className="text-xs font-semibold mb-3 text-gray-300 uppercase tracking-wider">6. CONCENTRAÇÃO POR GRUPO DE COMPRAS (GC)</h2>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={concentracaoGCData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+                    <XAxis dataKey="gc" stroke="#6b7280" tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                    <YAxis stroke="#6b7280" tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', borderRadius: '6px', fontSize: '12px' }}
+                      formatter={(value, name, props) => [`${value} itens (${props.payload.perc}%)`, 'Volume']}
+                    />
+                    <Bar dataKey="qtd" fill="#06b6d4" radius={[2, 2, 0, 0]} name="Itens">
+                      <LabelList dataKey="perc" position="top" formatter={(v) => `${v}%`} fill="#9ca3af" fontSize={10} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          {/* LINHA 4: EVOLUÇÃO TEMPORAL E TOP CENTROS */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            {/* 7. EVOLUÇÃO TEMPORAL */}
+            <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
+              <h2 className="text-xs font-semibold mb-3 text-gray-300 uppercase tracking-wider">7. EVOLUÇÃO TEMPORAL POR GRUPO DE COMPRAS</h2>
+              <div className="h-64">
+                {evolucaoDataLaurence.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={evolucaoDataLaurence}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+                      <XAxis dataKey="gc" stroke="#6b7280" tick={{ fontSize: 9, fill: '#9ca3af' }} angle={-20} textAnchor="end" />
+                      <YAxis stroke="#6b7280" tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                      <Tooltip contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', borderRadius: '6px', fontSize: '12px' }} />
+                      {datasEvolucaoUnicas.map((dtStr, idx) => (
+                        <Bar
+                          key={dtStr}
+                          dataKey={dtStr}
+                          name={dtStr}
+                          fill={idx === 0 ? '#06b6d4' : idx === 1 ? '#6366f1' : '#f59e0b'}
+                          radius={[2, 2, 0, 0]}
+                        />
+                      ))}
+                    </BarChart>
+                  </ResponsiveContainer>
                 ) : (
-                  <tr>
-                    <td colSpan="5" className="py-4 text-center text-slate-500">Nenhum comprador carregado</td>
-                  </tr>
+                  <div className="h-full flex items-center justify-center text-xs text-gray-500">
+                    Carregue a planilha para visualizar a evolução temporal.
+                  </div>
                 )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              </div>
+            </div>
 
-        <div className="bg-[#111726] p-5 rounded-xl border border-slate-800/80">
-          <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">8. TOP CENTROS COM MAIS ITENS PENDENTES</h2>
-          <p className="text-[11px] text-slate-400 mb-4">Centros com maior volume acumulado de requisições</p>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={rankingCentros} layout="vertical" margin={{ left: 10, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" horizontal={false} />
-                <XAxis type="number" stroke="#64748B" fontSize={10} allowDecimals={false} />
-                <YAxis type="category" dataKey="centro" stroke="#64748B" fontSize={9} width={150} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#171E2E', borderColor: '#334155', borderRadius: '8px' }}
-                  formatter={(value, name, props) => name === 'itens' ? [`${value} itens · aging médio ${props.payload.agingMedio}d`, 'Volume'] : [value, name]}
-                />
-                <Bar dataKey="itens" fill="#00E599" radius={[0, 3, 3, 0]} name="itens" />
-              </BarChart>
-            </ResponsiveContainer>
+            {/* 8. TOP CENTROS COM MAIS ITENS PENDENTES */}
+            <div className="bg-[#131927] p-4 rounded-lg border border-gray-800">
+              <h2 className="text-xs font-semibold mb-3 text-gray-300 uppercase tracking-wider">8. TOP CENTROS COM MAIS ITENS PENDENTES</h2>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={rankingCentros} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
+                    <XAxis type="number" stroke="#6b7280" tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                    <YAxis type="category" dataKey="centro" stroke="#6b7280" tick={{ fontSize: 10, fill: '#9ca3af' }} width={160} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', borderRadius: '6px', fontSize: '12px' }}
+                      formatter={(value, name, props) => name === 'itens' ? [`${value} itens (${props.payload.perc}%) · aging médio ${props.payload.agingMedio}d`, 'Volume'] : [value, name]}
+                    />
+                    <Bar dataKey="itens" fill="#10b981" radius={[0, 4, 4, 0]} name="Itens">
+                      <LabelList dataKey="perc" position="right" formatter={(v) => `${v}%`} fill="#9ca3af" fontSize={10} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
+        </>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-24 bg-[#131927] rounded-lg border border-gray-800 text-gray-500 gap-3">
+          <svg className="w-10 h-10 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <p className="text-xs font-medium">Carregue o arquivo de requisições (.xlsx) no botão superior para visualizar o dashboard.</p>
         </div>
-      </div>
-
+      )}
     </div>
   );
 }
